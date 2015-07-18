@@ -1,0 +1,10 @@
+[package]
+name = "skeptic"
+version = "0.1.0"
+authors = ["Brian Anderson <banderson@mozilla.com>"]
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+pulldown-cmark = "0.0.3"

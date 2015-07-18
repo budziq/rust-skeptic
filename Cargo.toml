@@ -1,0 +1,8 @@
+[package]
+name = "skeptic-readme"
+version = "0.1.0"
+authors = ["Brian Anderson <banderson@mozilla.com>"]
+build = "build.rs"
+
+[build-dependencies.skeptic]
+path = "src/skeptic"
