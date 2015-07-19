@@ -2,6 +2,8 @@
 name = "skeptic"
 version = "0.1.0"
 authors = ["Brian Anderson <banderson@mozilla.com>"]
+description = "Test your Rust markdown documentation via Cargo"
+license = "MIT/Apache-2.0"
 
 [lib]
 path = "lib.rs"
