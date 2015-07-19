@@ -34,7 +34,7 @@ fn main() {
 Finally, in `tests/skeptic.rs` put the following macros to tie the
 generated test cases to `cargo test`:
 
-```rust
+```rust ignore
 include!(concat!(env!("OUT_DIR"), "/skeptic-tests.rs"));
 ```
 

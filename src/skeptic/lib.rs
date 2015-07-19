@@ -36,7 +36,9 @@ fn run(ref config: Config) {
 
 struct Test {
     name: String,
-    text: String
+    text: Vec<String>,
+    ignore: bool,
+    should_panic: bool
 }
 
 fn extract_tests(config: &Config) -> Result<Vec<Test>, IoError> {
@@ -59,19 +61,29 @@ fn extract_tests_from_file(path: &Path) -> Result<Vec<Test>, IoError> {
     let parser = Parser::new(s);
 
     let mut test_name_gen = TestNameGen::new(path);
-    let mut save_next_test = false;
+    let mut test_buffer = None;
 
     for event in parser {
         match event {
-            Event::Start(Tag::CodeBlock(_meta)) => {
-                save_next_test = true;
+            Event::Start(Tag::CodeBlock(ref info)) => {
+                let code_block_info = parse_code_block_info(info);
+                if code_block_info.is_rust {
+                    test_buffer = Some(Vec::new());
+                }
             }
             Event::Text(text) => {
-                if save_next_test {
-                    save_next_test = false;
+                if let Some(ref mut buf) = test_buffer {
+                    buf.push(text.to_string());
+                }
+            }
+            Event::End(Tag::CodeBlock(ref info)) => {
+                let code_block_info = parse_code_block_info(info);
+                if let Some(buf) = test_buffer.take() {
                     tests.push(Test {
                         name: test_name_gen.advance(),
-                        text: text.to_string()
+                        text: buf,
+                        ignore: code_block_info.ignore,
+                        should_panic: code_block_info.should_panic
                     });
                 }
             }
@@ -103,7 +115,7 @@ impl TestNameGen {
 }
 
 fn sanitize_test_name(s: &str) -> String {
-    s.chars().map(|c| {
+    s.to_lowercase().chars().map(|c| {
         if c.is_alphanumeric() {
             c
         } else {
@@ -112,11 +124,60 @@ fn sanitize_test_name(s: &str) -> String {
     }).collect()
 }
 
+fn parse_code_block_info(info: &str) -> CodeBlockInfo {
+    // Same as rustdoc
+    let tokens = info.split(|c: char| {
+        !(c == '_' || c == '-' || c.is_alphanumeric())
+    });
+
+    let mut seen_rust_tags = false;
+    let mut seen_other_tags = false;
+    let mut info = CodeBlockInfo {
+        is_rust: true,
+        should_panic: false,
+        ignore: false,
+    };
+    
+    for token in tokens {
+        match token {
+            "" => {}
+            "rust" => { info.is_rust = true; seen_rust_tags = true }
+            "should_panic" => { info.should_panic = true; seen_rust_tags = true }
+            "ignore" => { info.ignore = true; seen_rust_tags = true }
+            _ => { seen_other_tags = true }
+        }
+    }
+
+    info.is_rust &= !seen_other_tags || seen_rust_tags;
+
+    info
+}
+
+struct CodeBlockInfo {
+    is_rust: bool,
+    should_panic: bool,
+    ignore: bool
+}
+
 fn emit_tests(config: &Config, tests: Vec<Test>) -> Result<(), IoError> {
     let mut file = try!(File::create(&config.out_file));
     for test in tests {
+        if test.ignore {
+            try!(writeln!(file, "#[ignore]"));
+        }
+        if test.should_panic {
+            try!(writeln!(file, "#[should_panic]"));
+        }
         try!(writeln!(file, "#[test] fn {}() {{", test.name));
-        try!(writeln!(file, "{}", test.text));
+        if test.ignore {
+            try!(writeln!(file, "/*"));
+        }
+        for text in &test.text {
+            try!(write!(file, "    {}", text));
+        }
+        if test.ignore {
+            try!(writeln!(file, "*/"));
+        }
         try!(writeln!(file, "}}"));
         try!(writeln!(file, ""));
     }
