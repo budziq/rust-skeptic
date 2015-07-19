@@ -63,7 +63,7 @@ fn extract_tests_from_file(path: &Path) -> Result<Vec<Test>, IoError> {
 
     for event in parser {
         match event {
-            Event::Start(Tag::CodeBlock(meta)) => {
+            Event::Start(Tag::CodeBlock(_meta)) => {
                 save_next_test = true;
             }
             Event::Text(text) => {
