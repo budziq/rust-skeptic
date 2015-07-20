@@ -7,7 +7,9 @@ license = "MIT/Apache-2.0"
 repository = "https://github.com/brson/rust-skeptic"
 
 [lib]
+name = "skeptic"
 path = "lib.rs"
 
 [dependencies]
 pulldown-cmark = "0.0.3"
+tempdir = "0.3.4"
