@@ -83,7 +83,7 @@ fn main() {
 <code>```</code>
 
 Skeptic will interpret other words in the code block's 'info string'
-(which should be separated by comma, ',', to be
+(which should be separated by comma, `,`, to be
 GitHub-compatible). These words change how the test is interpreted:
 `ignore`, and `should_panic`.
 
