@@ -20,22 +20,10 @@ pub fn generate_doc_tests(docs: &[&str]) {
     let mut out_file = PathBuf::from(out_dir.clone());
     out_file.push("skeptic-tests.rs");
 
-    // FIXME: Hack. Because the test runner uses rustc to build tests
-    // and those tests expect access to the crates this project
-    // builds, we need to find the directory containing Cargo's
-    // artifacts to pass as a `-L` flag to rustc. Cargo does not give
-    // us this directly, but we know relative to OUT_DIR where to
-    // look.
-    let mut lib_search_dir = PathBuf::from(out_dir);
-    lib_search_dir.pop();
-    lib_search_dir.pop();
-    lib_search_dir.pop();
-    lib_search_dir.push("deps");
-
     let config = Config {
+        out_dir: PathBuf::from(out_dir),
         root_dir: PathBuf::from(cargo_manifest_dir),
         out_file: out_file,
-        lib_search_dir: lib_search_dir,
         docs: docs.iter().map(|s| s.to_string()).collect()
     };
 
@@ -43,9 +31,9 @@ pub fn generate_doc_tests(docs: &[&str]) {
 }
 
 struct Config {
+    out_dir: PathBuf,
     root_dir: PathBuf,
     out_file: PathBuf,
-    lib_search_dir: PathBuf,
     docs: Vec<String>
 }
 
@@ -249,7 +237,7 @@ fn create_test_string(config: &Config,
     }
     try!(writeln!(s, "#[test] fn {}() {{", test.name));
     try!(writeln!(s, "    let ref s = format!(\"{}\", r#\"{}\"#);", template, test_text));
-    try!(writeln!(s, "    skeptic::rt::run_test(r#\"{}\"#, s);", config.lib_search_dir.to_str().unwrap()));
+    try!(writeln!(s, "    skeptic::rt::run_test(r#\"{}\"#, s);", config.out_dir.to_str().unwrap()));
     try!(writeln!(s, "}}"));
     try!(writeln!(s, ""));
 
@@ -260,18 +248,18 @@ pub mod rt {
     use std::env;
     use std::fs::File;
     use std::io::{self, Write};
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
     use std::process::{Command, Output};
     use tempdir::TempDir;
 
-    pub fn run_test(lib_search_dir: &str, test_text: &str) {
+    pub fn run_test(out_dir: &str, test_text: &str) {
         let ref rustc = env::var("RUSTC").unwrap_or(String::from("rustc"));
         let ref outdir = TempDir::new("rust-skeptic").unwrap();
         let ref testcase_path = outdir.path().join("test.rs");
         let ref binary_path = outdir.path().join("out.exe");
         
         write_test_case(testcase_path, test_text);
-        compile_test_case(testcase_path, binary_path, rustc, lib_search_dir);
+        compile_test_case(testcase_path, binary_path, rustc, out_dir);
         run_test_case(binary_path);
     }
 
@@ -281,13 +269,27 @@ pub mod rt {
     }
 
     fn compile_test_case(in_path: &Path, out_path: &Path,
-                         rustc: &str, lib_search_dir: &str) {
+                         rustc: &str, out_dir: &str) {
+
+        // FIXME: Hack. Because the test runner uses rustc to build
+        // tests and those tests expect access to the crate this
+        // project builds and its deps, we need to find the directory
+        // containing Cargo's deps to pass as a `-L` flag to
+        // rustc. Cargo does not give us this directly, but we know
+        // relative to OUT_DIR where to look.
+        let mut deps_dir = PathBuf::from(out_dir);
+        deps_dir.pop();
+        deps_dir.pop();
+        deps_dir.pop();
+        deps_dir.push("deps");
+
         interpret_output(
             Command::new(rustc)
                 .arg(in_path)
                 .arg("-o").arg(out_path)
                 .arg("--crate-type=bin")
-                .arg("-L").arg(lib_search_dir)
+                .arg("-L").arg(out_dir)
+                .arg("-L").arg(deps_dir)
                 .output()
                 .unwrap());
     }
