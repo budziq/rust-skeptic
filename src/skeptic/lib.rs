@@ -277,10 +277,11 @@ pub mod rt {
         // containing Cargo's deps to pass as a `-L` flag to
         // rustc. Cargo does not give us this directly, but we know
         // relative to OUT_DIR where to look.
-        let mut deps_dir = PathBuf::from(out_dir);
-        deps_dir.pop();
-        deps_dir.pop();
-        deps_dir.pop();
+        let mut target_dir = PathBuf::from(out_dir);
+        target_dir.pop();
+        target_dir.pop();
+        target_dir.pop();
+        let mut deps_dir = target_dir.clone();
         deps_dir.push("deps");
 
         interpret_output(
@@ -288,7 +289,7 @@ pub mod rt {
                 .arg(in_path)
                 .arg("-o").arg(out_path)
                 .arg("--crate-type=bin")
-                .arg("-L").arg(out_dir)
+                .arg("-L").arg(target_dir)
                 .arg("-L").arg(deps_dir)
                 .output()
                 .unwrap());
