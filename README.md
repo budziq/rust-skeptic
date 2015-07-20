@@ -2,7 +2,7 @@
 
 Test your Rust Markdown via Cargo.
 
-# Getting started
+## Getting started
 
 Put this in `Cargo.toml` to add the `skeptic` dependency:
 
@@ -44,7 +44,7 @@ include!(concat!(env!("OUT_DIR"), "/skeptic-tests.rs"));
 Now any Rust code blocks in `README.md` will be tested during `cargo
 test`.
 
-# Users' Guide
+## Users' Guide
 
 Rust Skeptic is not based on rustdoc. It behaves similarly in many
 cases, but not all. Here's the lowdown on the Skeptic system.
@@ -157,6 +157,6 @@ Rust Skeptic uses
 [`pulldown-cmark`](https://github.com/google/pulldown-cmark) for
 Markdown parsing.
 
-# License
+## License
 
 MIT/Apache-2.0
