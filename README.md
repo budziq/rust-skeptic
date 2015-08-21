@@ -113,10 +113,6 @@ fn do_amazing_thing() -> i32 {
 ```
 <code>```</code>
 
-*Note: GitHub doesn't understand comma-separated words, like
- `rust,ignore`, and will not syntax-highlight the above as Rust. If anybody
- knows how to work around this let me know.*
-
 `should_panic` causes the test to only pass if it terminates because
 of a `panic!()`.
 
