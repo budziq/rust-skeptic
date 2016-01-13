@@ -12,8 +12,10 @@ pub fn generate_doc_tests(docs: &[&str]) {
     // This shortcut is specifically so examples in skeptic's on
     // readme can call this function in non-build.rs contexts, without
     // panicking below.
-    if docs.is_empty() { return; }
-    
+    if docs.is_empty() {
+        return;
+    }
+
     let out_dir = env::var("OUT_DIR").unwrap();
     let cargo_manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
 
@@ -24,7 +26,7 @@ pub fn generate_doc_tests(docs: &[&str]) {
         out_dir: PathBuf::from(out_dir),
         root_dir: PathBuf::from(cargo_manifest_dir),
         out_file: out_file,
-        docs: docs.iter().map(|s| s.to_string()).collect()
+        docs: docs.iter().map(|s| s.to_string()).collect(),
     };
 
     run(config);
@@ -34,7 +36,7 @@ struct Config {
     out_dir: PathBuf,
     root_dir: PathBuf,
     out_file: PathBuf,
-    docs: Vec<String>
+    docs: Vec<String>,
 }
 
 fn run(ref config: Config) {
@@ -46,16 +48,16 @@ struct Test {
     name: String,
     text: Vec<String>,
     ignore: bool,
-    should_panic: bool
+    should_panic: bool,
 }
 
 struct DocTestSuite {
-    doc_tests: Vec<DocTest>
+    doc_tests: Vec<DocTest>,
 }
 
 struct DocTest {
     template: Option<String>,
-    tests: Vec<Test>
+    tests: Vec<Test>,
 }
 
 fn extract_tests(config: &Config) -> Result<DocTestSuite, IoError> {
@@ -72,7 +74,7 @@ fn extract_tests(config: &Config) -> Result<DocTestSuite, IoError> {
 fn extract_tests_from_file(path: &Path) -> Result<DocTest, IoError> {
     let mut tests = Vec::new();
     let mut template = None;
-    
+
     let mut file = try!(File::open(path));
     let ref mut s = String::new();
     try!(file.read_to_string(s));
@@ -104,18 +106,18 @@ fn extract_tests_from_file(path: &Path) -> Result<DocTest, IoError> {
                             name: test_name_gen.advance(),
                             text: buf,
                             ignore: code_block_info.ignore,
-                            should_panic: code_block_info.should_panic
+                            should_panic: code_block_info.should_panic,
                         });
                     }
                 }
             }
-            _ => ()
+            _ => (),
         }
     }
 
     Ok(DocTest {
         template: template,
-        tests: tests
+        tests: tests,
     })
 }
 
@@ -130,7 +132,7 @@ fn join_strings(ss: Vec<String>) -> String {
 
 struct TestNameGen {
     root: String,
-    count: i32
+    count: i32,
 }
 
 impl TestNameGen {
@@ -138,7 +140,7 @@ impl TestNameGen {
         let ref file_stem = path.file_stem().unwrap().to_str().unwrap().to_string();
         TestNameGen {
             root: sanitize_test_name(file_stem),
-            count: 0
+            count: 0,
         }
     }
 
@@ -150,13 +152,16 @@ impl TestNameGen {
 }
 
 fn sanitize_test_name(s: &str) -> String {
-    to_lowercase(s).chars().map(|c| {
-        if c.is_alphanumeric() {
-            c
-        } else {
-            '_'
-        }
-    }).collect()
+    to_lowercase(s)
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect()
 }
 
 // Only converting test names to lowercase to avoid style lints
@@ -169,9 +174,7 @@ fn to_lowercase(s: &str) -> String {
 
 fn parse_code_block_info(info: &str) -> CodeBlockInfo {
     // Same as rustdoc
-    let tokens = info.split(|c: char| {
-        !(c == '_' || c == '-' || c.is_alphanumeric())
-    });
+    let tokens = info.split(|c: char| !(c == '_' || c == '-' || c.is_alphanumeric()));
 
     let mut seen_rust_tags = false;
     let mut seen_other_tags = false;
@@ -179,17 +182,29 @@ fn parse_code_block_info(info: &str) -> CodeBlockInfo {
         is_rust: false,
         should_panic: false,
         ignore: false,
-        is_template: false
+        is_template: false,
     };
-    
+
     for token in tokens {
         match token {
             "" => {}
-            "rust" => { info.is_rust = true; seen_rust_tags = true }
-            "should_panic" => { info.should_panic = true; seen_rust_tags = true }
-            "ignore" => { info.ignore = true; seen_rust_tags = true }
-            "skeptic-template" => { info.is_template = true; seen_rust_tags = true }
-            _ => { seen_other_tags = true }
+            "rust" => {
+                info.is_rust = true;
+                seen_rust_tags = true
+            }
+            "should_panic" => {
+                info.should_panic = true;
+                seen_rust_tags = true
+            }
+            "ignore" => {
+                info.ignore = true;
+                seen_rust_tags = true
+            }
+            "skeptic-template" => {
+                info.is_template = true;
+                seen_rust_tags = true
+            }
+            _ => seen_other_tags = true,
         }
     }
 
@@ -202,7 +217,7 @@ struct CodeBlockInfo {
     is_rust: bool,
     should_panic: bool,
     ignore: bool,
-    is_template: bool
+    is_template: bool,
 }
 
 fn emit_tests(config: &Config, suite: DocTestSuite) -> Result<(), IoError> {
@@ -223,7 +238,8 @@ fn emit_tests(config: &Config, suite: DocTestSuite) -> Result<(), IoError> {
 
 fn create_test_string(config: &Config,
                       template: &Option<String>,
-                      test: &Test) -> Result<String, IoError> {
+                      test: &Test)
+                      -> Result<String, IoError> {
 
     let template = template.clone().unwrap_or_else(|| String::from("{}"));
     let test_text = test.text.iter().fold(String::new(), |a, b| format!("{}{}", a, b));
@@ -236,8 +252,13 @@ fn create_test_string(config: &Config,
         try!(writeln!(s, "#[should_panic]"));
     }
     try!(writeln!(s, "#[test] fn {}() {{", test.name));
-    try!(writeln!(s, "    let ref s = format!(\"{}\", r#\"{}\"#);", template, test_text));
-    try!(writeln!(s, "    skeptic::rt::run_test(r#\"{}\"#, s);", config.out_dir.to_str().unwrap()));
+    try!(writeln!(s,
+                  "    let ref s = format!(\"{}\", r####\"{}\"####);",
+                  template,
+                  test_text));
+    try!(writeln!(s,
+                  "    skeptic::rt::run_test(r#\"{}\"#, s);",
+                  config.out_dir.to_str().unwrap()));
     try!(writeln!(s, "}}"));
     try!(writeln!(s, ""));
 
@@ -257,7 +278,7 @@ pub mod rt {
         let ref outdir = TempDir::new("rust-skeptic").unwrap();
         let ref testcase_path = outdir.path().join("test.rs");
         let ref binary_path = outdir.path().join("out.exe");
-        
+
         write_test_case(testcase_path, test_text);
         compile_test_case(testcase_path, binary_path, rustc, out_dir);
         run_test_case(binary_path);
@@ -268,8 +289,7 @@ pub mod rt {
         file.write_all(test_text.as_bytes()).unwrap();
     }
 
-    fn compile_test_case(in_path: &Path, out_path: &Path,
-                         rustc: &str, out_dir: &str) {
+    fn compile_test_case(in_path: &Path, out_path: &Path, rustc: &str, out_dir: &str) {
 
         // FIXME: Hack. Because the test runner uses rustc to build
         // tests and those tests expect access to the crate this
@@ -284,26 +304,33 @@ pub mod rt {
         let mut deps_dir = target_dir.clone();
         deps_dir.push("deps");
 
-        interpret_output(
-            Command::new(rustc)
-                .arg(in_path)
-                .arg("-o").arg(out_path)
-                .arg("--crate-type=bin")
-                .arg("-L").arg(target_dir)
-                .arg("-L").arg(deps_dir)
-                .output()
-                .unwrap());
+        interpret_output(Command::new(rustc)
+                             .arg(in_path)
+                             .arg("-o")
+                             .arg(out_path)
+                             .arg("--crate-type=bin")
+                             .arg("-L")
+                             .arg(target_dir)
+                             .arg("-L")
+                             .arg(deps_dir)
+                             .output()
+                             .unwrap());
     }
     fn run_test_case(out_path: &Path) {
-        interpret_output(
-            Command::new(out_path)
-                .output()
-                .unwrap());
+        interpret_output(Command::new(out_path)
+                             .output()
+                             .unwrap());
     }
 
     fn interpret_output(output: Output) {
-        write!(io::stdout(), "{}", String::from_utf8(output.stdout).unwrap()).unwrap();
-        write!(io::stderr(), "{}", String::from_utf8(output.stderr).unwrap()).unwrap();
+        write!(io::stdout(),
+               "{}",
+               String::from_utf8(output.stdout).unwrap())
+            .unwrap();
+        write!(io::stderr(),
+               "{}",
+               String::from_utf8(output.stderr).unwrap())
+            .unwrap();
         if !output.status.success() {
             panic!("command failed");
         }
