@@ -8,10 +8,10 @@ Put this in `Cargo.toml` to add the `skeptic` dependency:
 
 ```toml
 [build-dependencies]
-skeptic = "*"
+skeptic = "0.4"
 
 [dev-dependencies]
-skeptic = "*"
+skeptic = "0.4"
 ```
 
 Also in `Cargo.toml`, to the `[package]` section add:
