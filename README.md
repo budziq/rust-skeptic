@@ -85,12 +85,32 @@ fn main() {
 Skeptic will interpret other words in the code block's 'info string'
 (which should be separated by comma, `,`, to be
 GitHub-compatible). These words change how the test is interpreted:
-`ignore`, and `should_panic`.
+`ignore`, `no_run`, and `should_panic`.
 
-`ignore` causes the test not to be run during testing, so it will neither pass nor fail.
+### `ignore` Info String
+
+The `ignore` info string causes the test to be completely ignored.  It will not
+be compiled or run during testing.  This can be useful if an example is written
+in Rust (and you want it highlighted as such) but it is known to be incomplete
+(so it cannot compile as-is).
 
 <code>```rust,ignore</code>
 ```rust,ignore
+fn do_amazing_thing() -> i32 {
+   // TODO: How do I do this?
+   unimplemented! whatever I'm distracted, oh cookies!
+```
+<code>```</code>
+
+### `no_run` Info String
+
+The `no_run` info string causes the example code not to be run during testing.
+Code marked with `no_run` will however still be compiled.  This is useful for
+examples/test that may have side effects or dependencies which are not desirable
+in a testing situation.
+
+<code>```rust,no_run</code>
+```rust,no_run
 fn do_amazing_thing() -> i32 {
    // TODO: How do I do this?
    unimplemented!()
@@ -102,16 +122,7 @@ fn main() {
 ```
 <code>```</code>
 
-Furthermore, like rustdoc, `ignore`d test cases will not even be
-compiled, so may contain compilation errors:
-
-<code>```rust,ignore</code>
-```rust,ignore
-fn do_amazing_thing() -> i32 {
-   // TODO: How do I do this?
-   unimplemented! whatever I'm distracted, oh cookies!
-```
-<code>```</code>
+### `should_panic` Info String
 
 `should_panic` causes the test to only pass if it terminates because
 of a `panic!()`.
