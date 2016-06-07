@@ -48,6 +48,7 @@ struct Test {
     name: String,
     text: Vec<String>,
     ignore: bool,
+    no_run: bool,
     should_panic: bool,
 }
 
@@ -106,6 +107,7 @@ fn extract_tests_from_file(path: &Path) -> Result<DocTest, IoError> {
                             name: test_name_gen.advance(),
                             text: buf,
                             ignore: code_block_info.ignore,
+                            no_run: code_block_info.no_run,
                             should_panic: code_block_info.should_panic,
                         });
                     }
@@ -182,6 +184,7 @@ fn parse_code_block_info(info: &str) -> CodeBlockInfo {
         is_rust: false,
         should_panic: false,
         ignore: false,
+        no_run: false,
         is_template: false,
     };
 
@@ -200,6 +203,10 @@ fn parse_code_block_info(info: &str) -> CodeBlockInfo {
                 info.ignore = true;
                 seen_rust_tags = true
             }
+            "no_run" => {
+                info.no_run = true;
+                seen_rust_tags = true;
+            }
             "skeptic-template" => {
                 info.is_template = true;
                 seen_rust_tags = true
@@ -217,6 +224,7 @@ struct CodeBlockInfo {
     is_rust: bool,
     should_panic: bool,
     ignore: bool,
+    no_run: bool,
     is_template: bool,
 }
 
@@ -251,7 +259,15 @@ fn create_test_string(config: &Config,
     if test.should_panic {
         try!(writeln!(s, "#[should_panic]"));
     }
-    try!(writeln!(s, "#[test] fn {}() {{", test.name));
+
+    // if we are not running, just generate an unused function to get
+    // compile checking (but it won't be run without test attribute)
+    if test.no_run {
+        try!(writeln!(s, "#[allow(dead_code)] fn {}() {{", test.name));
+    } else {
+        try!(writeln!(s, "#[test] fn {}() {{", test.name));
+    }
+
     try!(writeln!(s,
                   "    let ref s = format!(\"{}\", r####\"{}\"####);",
                   template,
