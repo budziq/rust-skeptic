@@ -260,21 +260,23 @@ fn create_test_string(config: &Config,
         try!(writeln!(s, "#[should_panic]"));
     }
 
-    // if we are not running, just generate an unused function to get
-    // compile checking (but it won't be run without test attribute)
-    if test.no_run {
-        try!(writeln!(s, "#[allow(dead_code)] fn {}() {{", test.name));
-    } else {
-        try!(writeln!(s, "#[test] fn {}() {{", test.name));
-    }
-
+    try!(writeln!(s, "#[test] fn {}() {{", test.name));
     try!(writeln!(s,
                   "    let ref s = format!(\"{}\", r####\"{}\"####);",
                   template,
                   test_text));
-    try!(writeln!(s,
-                  "    skeptic::rt::run_test(r#\"{}\"#, s);",
-                  config.out_dir.to_str().unwrap()));
+
+    // if we are not running, just compile the test without running it
+    if test.no_run {
+        try!(writeln!(s,
+            "    skeptic::rt::compile_test(r#\"{}\"#, s);",
+            config.out_dir.to_str().unwrap()));
+    } else {
+        try!(writeln!(s,
+            "    skeptic::rt::run_test(r#\"{}\"#, s);",
+            config.out_dir.to_str().unwrap()));
+    }
+
     try!(writeln!(s, "}}"));
     try!(writeln!(s, ""));
 
@@ -288,6 +290,16 @@ pub mod rt {
     use std::path::{Path, PathBuf};
     use std::process::{Command, Output};
     use tempdir::TempDir;
+
+    pub fn compile_test(out_dir: &str, test_text: &str) {
+        let ref rustc = env::var("RUSTC").unwrap_or(String::from("rustc"));
+        let ref outdir = TempDir::new("rust-skeptic").unwrap();
+        let ref testcase_path = outdir.path().join("test.rs");
+        let ref binary_path = outdir.path().join("out.exe");
+
+        write_test_case(testcase_path, test_text);
+        compile_test_case(testcase_path, binary_path, rustc, out_dir);
+    }
 
     pub fn run_test(out_dir: &str, test_text: &str) {
         let ref rustc = env::var("RUSTC").unwrap_or(String::from("rustc"));
