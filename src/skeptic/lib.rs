@@ -3,8 +3,7 @@ extern crate tempdir;
 
 use std::env;
 use std::fs::File;
-use std::io::Error as IoError;
-use std::io::{Read, Write};
+use std::io::{self, Read, Write, Error as IoError};
 use std::path::{PathBuf, Path};
 use cmark::{Parser, Event, Tag};
 
@@ -16,8 +15,8 @@ pub fn generate_doc_tests(docs: &[&str]) {
         return;
     }
 
-    // Inform cargo that it needs to rerun the build script if one of the
-    // skeptic files are modified
+    // Inform cargo that it needs to rerun the build script if one of the skeptic files are
+    // modified
     for doc in docs {
         println!("cargo:rerun-if-changed={}", doc);
     }
@@ -226,19 +225,18 @@ struct CodeBlockInfo {
 }
 
 fn emit_tests(config: &Config, suite: DocTestSuite) -> Result<(), IoError> {
-    let mut file = try!(File::create(&config.out_file));
+    let mut out = String::new();
 
     // Test cases use the api from skeptic::rt
-    try!(writeln!(file, "extern crate skeptic;\n"));
+    out.push_str("extern crate skeptic;\n");
 
     for doc_test in suite.doc_tests {
         for test in &doc_test.tests {
             let test_string = try!(create_test_string(config, &doc_test.template, test));
-            try!(writeln!(file, "{}", test_string));
+            out.push_str(&test_string);
         }
     }
-
-    Ok(())
+    write_if_contents_changed(&config.out_file, &out)
 }
 
 fn create_test_string(config: &Config,
@@ -278,6 +276,25 @@ fn create_test_string(config: &Config,
     try!(writeln!(s, ""));
 
     Ok(String::from_utf8(s).unwrap())
+}
+
+fn write_if_contents_changed(name: &Path, contents: &str) -> Result<(), IoError> {
+    // Can't open in write mode now as that would modify the last changed timestamp of the file
+    match File::open(name) {
+        Ok(mut file) => {
+            let mut current_contents = String::new();
+            try!(file.read_to_string(&mut current_contents));
+            if current_contents == contents {
+                // No change avoid writing to avoid updating the timestamp of the file
+                return Ok(())
+            }
+        }
+        Err(ref err) if err.kind() == io::ErrorKind::NotFound => (),
+        Err(err) => return Err(err),
+    }
+    let mut file = try!(File::create(name));
+    try!(file.write(contents.as_bytes()));
+    Ok(())
 }
 
 pub mod rt {
