@@ -107,7 +107,7 @@ fn extract_tests_from_file(path: &Path) -> Result<DocTest, IoError> {
                 let code_block_info = parse_code_block_info(info);
                 if let Some(buf) = code_buffer.take() {
                     if code_block_info.is_template {
-                        template = Some(join_strings(buf))
+                        template = Some(buf.into_iter().collect())
                     } else {
                         tests.push(Test {
                             name: test_name_gen.advance(),
@@ -127,15 +127,6 @@ fn extract_tests_from_file(path: &Path) -> Result<DocTest, IoError> {
         template: template,
         tests: tests,
     })
-}
-
-fn join_strings(ss: Vec<String>) -> String {
-    let mut s_ = String::new();
-    for s in ss {
-        s_.push_str(&s)
-    }
-
-    s_
 }
 
 struct TestNameGen {
