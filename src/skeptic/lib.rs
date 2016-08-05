@@ -16,6 +16,12 @@ pub fn generate_doc_tests(docs: &[&str]) {
         return;
     }
 
+    // Inform cargo that it needs to rerun the build script if one of the
+    // skeptic files are modified
+    for doc in docs {
+        println!("cargo:rerun-if-changed={}", doc);
+    }
+
     let out_dir = env::var("OUT_DIR").unwrap();
     let cargo_manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
 
