@@ -346,7 +346,8 @@ pub mod rt {
         let mut deps_dir = target_dir.clone();
         deps_dir.push("deps");
 
-        interpret_output(Command::new(rustc)
+        interpret_output("compile",
+                         Command::new(rustc)
                              .arg(in_path)
                              .arg("-o")
                              .arg(out_path)
@@ -359,12 +360,13 @@ pub mod rt {
                              .unwrap());
     }
     fn run_test_case(out_path: &Path) {
-        interpret_output(Command::new(out_path)
+        interpret_output("run",
+                         Command::new(out_path)
                              .output()
                              .unwrap());
     }
 
-    fn interpret_output(output: Output) {
+    fn interpret_output(command: &str, output: Output) {
         write!(io::stdout(),
                "{}",
                String::from_utf8(output.stdout).unwrap())
@@ -374,7 +376,7 @@ pub mod rt {
                String::from_utf8(output.stderr).unwrap())
             .unwrap();
         if !output.status.success() {
-            panic!("command failed");
+            panic!("command `{}` failed", command);
         }
     }
 }
