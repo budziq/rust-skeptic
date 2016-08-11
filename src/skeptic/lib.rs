@@ -3,8 +3,7 @@ extern crate tempdir;
 
 use std::env;
 use std::fs::File;
-use std::io::Error as IoError;
-use std::io::{Read, Write};
+use std::io::{self, Read, Write, Error as IoError};
 use std::path::{PathBuf, Path};
 use cmark::{Parser, Event, Tag};
 
@@ -14,6 +13,12 @@ pub fn generate_doc_tests(docs: &[&str]) {
     // panicking below.
     if docs.is_empty() {
         return;
+    }
+
+    // Inform cargo that it needs to rerun the build script if one of the skeptic files are
+    // modified
+    for doc in docs {
+        println!("cargo:rerun-if-changed={}", doc);
     }
 
     let out_dir = env::var("OUT_DIR").unwrap();
@@ -101,7 +106,7 @@ fn extract_tests_from_file(path: &Path) -> Result<DocTest, IoError> {
                 let code_block_info = parse_code_block_info(info);
                 if let Some(buf) = code_buffer.take() {
                     if code_block_info.is_template {
-                        template = Some(join_strings(buf))
+                        template = Some(buf.into_iter().collect())
                     } else {
                         tests.push(Test {
                             name: test_name_gen.advance(),
@@ -121,15 +126,6 @@ fn extract_tests_from_file(path: &Path) -> Result<DocTest, IoError> {
         template: template,
         tests: tests,
     })
-}
-
-fn join_strings(ss: Vec<String>) -> String {
-    let mut s_ = String::new();
-    for s in ss {
-        s_.push_str(&s)
-    }
-
-    s_
 }
 
 struct TestNameGen {
@@ -229,19 +225,18 @@ struct CodeBlockInfo {
 }
 
 fn emit_tests(config: &Config, suite: DocTestSuite) -> Result<(), IoError> {
-    let mut file = try!(File::create(&config.out_file));
+    let mut out = String::new();
 
     // Test cases use the api from skeptic::rt
-    try!(writeln!(file, "extern crate skeptic;\n"));
+    out.push_str("extern crate skeptic;\n");
 
     for doc_test in suite.doc_tests {
         for test in &doc_test.tests {
             let test_string = try!(create_test_string(config, &doc_test.template, test));
-            try!(writeln!(file, "{}", test_string));
+            out.push_str(&test_string);
         }
     }
-
-    Ok(())
+    write_if_contents_changed(&config.out_file, &out)
 }
 
 fn create_test_string(config: &Config,
@@ -281,6 +276,25 @@ fn create_test_string(config: &Config,
     try!(writeln!(s, ""));
 
     Ok(String::from_utf8(s).unwrap())
+}
+
+fn write_if_contents_changed(name: &Path, contents: &str) -> Result<(), IoError> {
+    // Can't open in write mode now as that would modify the last changed timestamp of the file
+    match File::open(name) {
+        Ok(mut file) => {
+            let mut current_contents = String::new();
+            try!(file.read_to_string(&mut current_contents));
+            if current_contents == contents {
+                // No change avoid writing to avoid updating the timestamp of the file
+                return Ok(())
+            }
+        }
+        Err(ref err) if err.kind() == io::ErrorKind::NotFound => (),
+        Err(err) => return Err(err),
+    }
+    let mut file = try!(File::create(name));
+    try!(file.write(contents.as_bytes()));
+    Ok(())
 }
 
 pub mod rt {
@@ -332,7 +346,8 @@ pub mod rt {
         let mut deps_dir = target_dir.clone();
         deps_dir.push("deps");
 
-        interpret_output(Command::new(rustc)
+        interpret_output("compile",
+                         Command::new(rustc)
                              .arg(in_path)
                              .arg("-o")
                              .arg(out_path)
@@ -345,12 +360,13 @@ pub mod rt {
                              .unwrap());
     }
     fn run_test_case(out_path: &Path) {
-        interpret_output(Command::new(out_path)
+        interpret_output("run",
+                         Command::new(out_path)
                              .output()
                              .unwrap());
     }
 
-    fn interpret_output(output: Output) {
+    fn interpret_output(command: &str, output: Output) {
         write!(io::stdout(),
                "{}",
                String::from_utf8(output.stdout).unwrap())
@@ -360,7 +376,7 @@ pub mod rt {
                String::from_utf8(output.stderr).unwrap())
             .unwrap();
         if !output.status.success() {
-            panic!("command failed");
+            panic!("command `{}` failed", command);
         }
     }
 }
