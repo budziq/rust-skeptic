@@ -299,10 +299,11 @@ fn write_if_contents_changed(name: &Path, contents: &str) -> Result<(), IoError>
 
 pub mod rt {
     use std::env;
-    use std::fs::File;
+    use std::fs::{self, File};
     use std::io::{self, Write};
     use std::path::{Path, PathBuf};
     use std::process::{Command, Output};
+    use std::ffi::OsStr;
     use tempdir::TempDir;
 
     pub fn compile_test(out_dir: &str, test_text: &str) {
@@ -346,18 +347,29 @@ pub mod rt {
         let mut deps_dir = target_dir.clone();
         deps_dir.push("deps");
 
-        interpret_output("compile",
-                         Command::new(rustc)
-                             .arg(in_path)
-                             .arg("-o")
-                             .arg(out_path)
-                             .arg("--crate-type=bin")
-                             .arg("-L")
-                             .arg(target_dir)
-                             .arg("-L")
-                             .arg(deps_dir)
-                             .output()
-                             .unwrap());
+        let mut cmd = Command::new(rustc);
+        cmd.arg(in_path)
+            .arg("-o").arg(out_path)
+            .arg("--crate-type=bin")
+            .arg("-L").arg(target_dir)
+            .arg("-L").arg(&deps_dir);
+
+        for dep in fs::read_dir(deps_dir).expect("failed to access target/*/deps") {
+            let dep = dep.expect("failed to read files from target/*/deps");
+            let dep = dep.path();
+            if let Some(name) = dep.file_stem().and_then(OsStr::to_str) {
+                if let Some(ext) = dep.extension() {
+                    if ext == "rlib" {
+                        if let Some(libname) = name.rsplitn(2, '-').nth(1) {
+                            cmd.arg("--extern");
+                            cmd.arg(format!("{}={}", libname, dep.to_str().expect("filename not utf8")));
+                        }
+                    }
+                }
+            }
+        }
+
+        interpret_output("compile", cmd.output().unwrap());
     }
     fn run_test_case(out_path: &Path) {
         interpret_output("run",
