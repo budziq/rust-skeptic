@@ -1,3 +1,10 @@
+# 0.6.1
+
+* [Only overwrite the generated test file when it is not modified](https://github.com/brson/rust-skeptic/pull/10)
+* [Pass --extern to rustc for all crates](https://github.com/brson/rust-skeptic/pull/11)
+
+Contributors: Brian Anderson, Markus, Oliver Schneider
+
 # 0.6.0
 
 * [Fix `no_run`](https://github.com/brson/rust-skeptic/pull/7)
