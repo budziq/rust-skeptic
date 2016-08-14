@@ -349,6 +349,7 @@ pub mod rt {
 
         let mut cmd = Command::new(rustc);
         cmd.arg(in_path)
+            .arg("--verbose")
             .arg("-o").arg(out_path)
             .arg("--crate-type=bin")
             .arg("-L").arg(target_dir)
