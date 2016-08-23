@@ -302,7 +302,7 @@ pub mod rt {
     use std::fs::{self, File};
     use std::io::{self, Write};
     use std::path::{Path, PathBuf};
-    use std::process::{Command, Output};
+    use std::process::Command;
     use std::ffi::OsStr;
     use tempdir::TempDir;
 
@@ -349,6 +349,7 @@ pub mod rt {
 
         let mut cmd = Command::new(rustc);
         cmd.arg(in_path)
+            .arg("--verbose")
             .arg("-o").arg(out_path)
             .arg("--crate-type=bin")
             .arg("-L").arg(target_dir)
@@ -369,16 +370,14 @@ pub mod rt {
             }
         }
 
-        interpret_output("compile", cmd.output().unwrap());
+        interpret_output(cmd);
     }
     fn run_test_case(out_path: &Path) {
-        interpret_output("run",
-                         Command::new(out_path)
-                             .output()
-                             .unwrap());
+        interpret_output(Command::new(out_path));
     }
 
-    fn interpret_output(command: &str, output: Output) {
+    fn interpret_output(mut command: Command) {
+        let output = command.output().unwrap();
         write!(io::stdout(),
                "{}",
                String::from_utf8(output.stdout).unwrap())
@@ -388,7 +387,7 @@ pub mod rt {
                String::from_utf8(output.stderr).unwrap())
             .unwrap();
         if !output.status.success() {
-            panic!("command `{}` failed", command);
+            panic!("Command failed:\n{:?}", command);
         }
     }
 }
