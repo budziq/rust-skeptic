@@ -11,5 +11,5 @@ name = "skeptic"
 path = "lib.rs"
 
 [dependencies]
-pulldown-cmark = "0.0.3"
+pulldown-cmark = "0.0.8"
 tempdir = "0.3.4"
