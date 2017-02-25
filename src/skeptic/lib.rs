@@ -7,7 +7,7 @@ use std::io::{self, Read, Write, Error as IoError};
 use std::path::{PathBuf, Path};
 use cmark::{Parser, Event, Tag};
 
-pub fn generate_doc_tests(docs: &[AsRef<str>]) {
+pub fn generate_doc_tests<T>(docs: &[T]) where T : AsRef<str> {
     // This shortcut is specifically so examples in skeptic's on
     // readme can call this function in non-build.rs contexts, without
     // panicking below.
