@@ -7,7 +7,7 @@ use std::io::{self, Read, Write, Error as IoError};
 use std::path::{PathBuf, Path};
 use cmark::{Parser, Event, Tag};
 
-pub fn generate_doc_tests(docs: &[&str]) {
+pub fn generate_doc_tests<T>(docs: &[T]) where T : AsRef<str> {
     // This shortcut is specifically so examples in skeptic's on
     // readme can call this function in non-build.rs contexts, without
     // panicking below.
@@ -18,7 +18,7 @@ pub fn generate_doc_tests(docs: &[&str]) {
     // Inform cargo that it needs to rerun the build script if one of the skeptic files are
     // modified
     for doc in docs {
-        println!("cargo:rerun-if-changed={}", doc);
+        println!("cargo:rerun-if-changed={}", doc.as_ref());
     }
 
     let out_dir = env::var("OUT_DIR").unwrap();
@@ -31,7 +31,7 @@ pub fn generate_doc_tests(docs: &[&str]) {
         out_dir: PathBuf::from(out_dir),
         root_dir: PathBuf::from(cargo_manifest_dir),
         out_file: out_file,
-        docs: docs.iter().map(|s| s.to_string()).collect(),
+        docs: docs.iter().map(|s| s.as_ref().to_string()).collect(),
     };
 
     run(config);
