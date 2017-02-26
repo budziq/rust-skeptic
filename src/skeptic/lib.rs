@@ -362,6 +362,7 @@ pub mod rt {
                 if let Some(ext) = dep.extension() {
                     if ext == "rlib" {
                         if let Some(libname) = name.rsplitn(2, '-').nth(1) {
+                            let libname = &libname[3..];
                             cmd.arg("--extern");
                             cmd.arg(format!("{}={}", libname, dep.to_str().expect("filename not utf8")));
                         }
