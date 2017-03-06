@@ -257,7 +257,7 @@ fn create_test_string(config: &Config,
 
     try!(writeln!(s, "#[test] fn {}() {{", test.name));
     try!(writeln!(s,
-                  "    let ref s = format!(\"{}\", r####\"{}\"####);",
+                  "    let s = &format!(\"{}\\n\", r####\"{}\"####);",
                   template,
                   test_text));
 
