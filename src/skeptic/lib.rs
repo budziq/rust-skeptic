@@ -350,7 +350,7 @@ fn create_test_runner(config: &Config,
 
     try!(writeln!(s, "#[test] fn {}() {{", test.name));
     try!(writeln!(s,
-                  "    let ref s = format!(r####\"{}\"####, r####\"{}\"####);",
+                  "    let s = &format!(r####\"{}\\n\"####, r####\"{}\"####);",
                   template,
                   test_text));
 
