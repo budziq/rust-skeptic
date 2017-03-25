@@ -146,6 +146,56 @@ function, as in all the examples above. Implicit wrapping of examples
 in `main`, and custom injection of `extern crate` statements and crate
 attributes are controlled through document-level templates.
 
+Templates for a document are located in a separate file, that lives
+next to the document on the filesystem, and has the same full name as
+the document file, but with an additional ".skt.md" template.
+
+So for example, this file, `README.md`, stores its templates
+in `README.md.skt.md`.
+
+This scheme allows the markdown to be displayed naturally be stock
+Markdown renderers without displaying the template itself. The weird
+file extension is similarly so that the templates themselves are
+interpreted as valid markdown while being easy to ignore based on file
+system.
+
+Consider this example:
+
+```rust,skt-foo
+let p = PathBuf::from("foo");
+println!("{:?}", p);
+```
+
+This example won't compile without defining `main` and importing
+`PathBuf`, but the example itself does not contain that
+boilerplate. Instead it is annotated `skt-foo`, for _skeptic template
+foo_, like so:
+
+<code>```rust,skt-foo</code>
+```rust,ignore
+let p = PathBuf::from("foo");
+println!("{:?}", p);
+```
+<code>```</code>
+
+This tells skeptic to look in the template file for another
+markdown block with the same `skt-foo` annotation, and composes
+them together using the standard Rust `format!` macro. Here's
+what the template looks like:
+
+<code>```rust,skt-foo</code>
+```rust,ignore
+use std::path::PathBuf;
+
+fn main() {{
+    {}
+}}
+```
+
+Note that in a template, real braces need to be doubled.
+
+## Old-style Skeptic Templates
+
 Since the examples in this README run as written, it doesn't need a
 template, but we can specifiy a no-op template like so:
 
@@ -157,8 +207,9 @@ template, but we can specifiy a no-op template like so:
 
 Templates are [Rust format
 specifiers](http://doc.rust-lang.org/std/fmt/index.html) that must
-take a single argument (i.e. they need to contain the string "{}"). See
-[the template example](template-example.md) for more on templates.
+take a single argument (i.e. they need to contain the string
+"{}"). See [the (old) template example](template-example.md) for more
+on templates.
 
 Rust Skeptic uses
 [`pulldown-cmark`](https://github.com/google/pulldown-cmark) for
