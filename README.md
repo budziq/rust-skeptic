@@ -191,6 +191,7 @@ fn main() {{
     {}
 }}
 ```
+<code>```</code>
 
 Note that in a template, real braces need to be doubled.
 
