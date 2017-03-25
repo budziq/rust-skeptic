@@ -6,6 +6,7 @@ use std::fs::File;
 use std::io::{self, Read, Write, Error as IoError};
 use std::path::{PathBuf, Path};
 use cmark::{Parser, Event, Tag};
+use std::collections::HashMap;
 
 pub fn generate_doc_tests<T>(docs: &[T]) where T : AsRef<str> {
     // This shortcut is specifically so examples in skeptic's on
@@ -55,6 +56,7 @@ struct Test {
     ignore: bool,
     no_run: bool,
     should_panic: bool,
+    template: Option<String>,
 }
 
 struct DocTestSuite {
@@ -62,8 +64,9 @@ struct DocTestSuite {
 }
 
 struct DocTest {
-    template: Option<String>,
+    old_template: Option<String>,
     tests: Vec<Test>,
+    templates: HashMap<String, String>,
 }
 
 fn extract_tests(config: &Config) -> Result<DocTestSuite, IoError> {
@@ -79,7 +82,8 @@ fn extract_tests(config: &Config) -> Result<DocTestSuite, IoError> {
 
 fn extract_tests_from_file(path: &Path) -> Result<DocTest, IoError> {
     let mut tests = Vec::new();
-    let mut template = None;
+    // Oh this isn't actually a test but a legacy template
+    let mut old_template = None;
 
     let mut file = try!(File::open(path));
     let ref mut s = String::new();
@@ -105,8 +109,8 @@ fn extract_tests_from_file(path: &Path) -> Result<DocTest, IoError> {
             Event::End(Tag::CodeBlock(ref info)) => {
                 let code_block_info = parse_code_block_info(info);
                 if let Some(buf) = code_buffer.take() {
-                    if code_block_info.is_template {
-                        template = Some(buf.into_iter().collect())
+                    if code_block_info.is_old_template {
+                        old_template = Some(buf.into_iter().collect())
                     } else {
                         tests.push(Test {
                             name: test_name_gen.advance(),
@@ -114,6 +118,7 @@ fn extract_tests_from_file(path: &Path) -> Result<DocTest, IoError> {
                             ignore: code_block_info.ignore,
                             no_run: code_block_info.no_run,
                             should_panic: code_block_info.should_panic,
+                            template: code_block_info.template,
                         });
                     }
                 }
@@ -122,10 +127,57 @@ fn extract_tests_from_file(path: &Path) -> Result<DocTest, IoError> {
         }
     }
 
+    let templates = load_templates(path)?;
+
     Ok(DocTest {
-        template: template,
+        old_template: old_template,
         tests: tests,
+        templates: templates,
     })
+}
+
+fn load_templates(path: &Path) -> Result<HashMap<String, String>, IoError> {
+    let file_name = format!("{}.skt.md", path.file_name().expect("no file name").to_string_lossy());
+    let path = path.with_file_name(&file_name);
+     if !path.exists() {
+        return Ok(HashMap::new());
+    }
+
+    let mut map = HashMap::new();
+
+    let mut file = try!(File::open(path));
+    let ref mut s = String::new();
+    try!(file.read_to_string(s));
+    let parser = Parser::new(s);
+
+    let mut code_buffer = None;
+
+    for event in parser {
+        match event {
+            Event::Start(Tag::CodeBlock(ref info)) => {
+                let code_block_info = parse_code_block_info(info);
+                if code_block_info.is_rust {
+                    code_buffer = Some(Vec::new());
+                }
+            }
+            Event::Text(text) => {
+                if let Some(ref mut buf) = code_buffer {
+                    buf.push(text.to_string());
+                }
+            }
+            Event::End(Tag::CodeBlock(ref info)) => {
+                let code_block_info = parse_code_block_info(info);
+                if let Some(buf) = code_buffer.take() {
+                    if let Some(t) = code_block_info.template {
+                        map.insert(t, buf.into_iter().collect());
+                    }
+                }
+            }
+            _ => (),
+        }
+    }
+
+    Ok(map)
 }
 
 struct TestNameGen {
@@ -181,7 +233,8 @@ fn parse_code_block_info(info: &str) -> CodeBlockInfo {
         should_panic: false,
         ignore: false,
         no_run: false,
-        is_template: false,
+        is_old_template: false,
+        template: None,
     };
 
     for token in tokens {
@@ -204,8 +257,12 @@ fn parse_code_block_info(info: &str) -> CodeBlockInfo {
                 seen_rust_tags = true;
             }
             "skeptic-template" => {
-                info.is_template = true;
+                info.is_old_template = true;
                 seen_rust_tags = true
+            }
+            _ if token.starts_with("skt-") => {
+                info.template = Some(token[4..].to_string());
+                seen_rust_tags = true;
             }
             _ => seen_other_tags = true,
         }
@@ -221,7 +278,8 @@ struct CodeBlockInfo {
     should_panic: bool,
     ignore: bool,
     no_run: bool,
-    is_template: bool,
+    is_old_template: bool,
+    template: Option<String>,
 }
 
 fn emit_tests(config: &Config, suite: DocTestSuite) -> Result<(), IoError> {
@@ -232,7 +290,15 @@ fn emit_tests(config: &Config, suite: DocTestSuite) -> Result<(), IoError> {
 
     for doc_test in suite.doc_tests {
         for test in &doc_test.tests {
-            let test_string = try!(create_test_string(config, &doc_test.template, test));
+            let test_string = {
+                if let Some(ref t) = test.template {
+                    let template = doc_test.templates.get(t)
+                        .expect(&format!("template {} not found", t));
+                    try!(create_test_string(config, &Some(template.to_string()), test))
+                } else {
+                    try!(create_test_string(config, &doc_test.old_template, test))
+                }
+            };
             out.push_str(&test_string);
         }
     }
