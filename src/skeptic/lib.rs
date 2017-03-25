@@ -8,7 +8,7 @@ use std::path::{PathBuf, Path};
 use cmark::{Parser, Event, Tag};
 use std::collections::HashMap;
 
-pub fn generate_doc_tests<T>(docs: &[T]) where T : AsRef<str> {
+pub fn generate_doc_tests<T: Clone>(docs: &[T]) where T : AsRef<str> {
     // This shortcut is specifically so examples in skeptic's on
     // readme can call this function in non-build.rs contexts, without
     // panicking below.
@@ -16,9 +16,13 @@ pub fn generate_doc_tests<T>(docs: &[T]) where T : AsRef<str> {
         return;
     }
 
+    let docs = docs.iter().cloned().filter(|d| {
+        !d.as_ref().ends_with(".skt.md")
+    }).collect::<Vec<_>>();
+
     // Inform cargo that it needs to rerun the build script if one of the skeptic files are
     // modified
-    for doc in docs {
+    for doc in &docs {
         println!("cargo:rerun-if-changed={}", doc.as_ref());
         println!("cargo:rerun-if-changed={}.skt.md", doc.as_ref());
     }
@@ -65,6 +69,7 @@ struct DocTestSuite {
 }
 
 struct DocTest {
+    path: PathBuf,
     old_template: Option<String>,
     tests: Vec<Test>,
     templates: HashMap<String, String>,
@@ -131,6 +136,7 @@ fn extract_tests_from_file(path: &Path) -> Result<DocTest, IoError> {
     let templates = load_templates(path)?;
 
     Ok(DocTest {
+        path: path.to_owned(),
         old_template: old_template,
         tests: tests,
         templates: templates,
@@ -140,7 +146,7 @@ fn extract_tests_from_file(path: &Path) -> Result<DocTest, IoError> {
 fn load_templates(path: &Path) -> Result<HashMap<String, String>, IoError> {
     let file_name = format!("{}.skt.md", path.file_name().expect("no file name").to_string_lossy());
     let path = path.with_file_name(&file_name);
-     if !path.exists() {
+    if !path.exists() {
         return Ok(HashMap::new());
     }
 
@@ -294,7 +300,7 @@ fn emit_tests(config: &Config, suite: DocTestSuite) -> Result<(), IoError> {
             let test_string = {
                 if let Some(ref t) = test.template {
                     let template = doc_test.templates.get(t)
-                        .expect(&format!("template {} not found", t));
+                        .expect(&format!("template {} not found for {}", t, doc_test.path.display()));
                     try!(create_test_string(config, &Some(template.to_string()), test))
                 } else {
                     try!(create_test_string(config, &doc_test.old_template, test))
@@ -324,7 +330,7 @@ fn create_test_string(config: &Config,
 
     try!(writeln!(s, "#[test] fn {}() {{", test.name));
     try!(writeln!(s,
-                  "    let ref s = format!(\"{}\", r####\"{}\"####);",
+                  "    let ref s = format!(r####\"{}\"####, r####\"{}\"####);",
                   template,
                   test_text));
 
