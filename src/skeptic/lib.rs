@@ -20,6 +20,7 @@ pub fn generate_doc_tests<T>(docs: &[T]) where T : AsRef<str> {
     // modified
     for doc in docs {
         println!("cargo:rerun-if-changed={}", doc.as_ref());
+        println!("cargo:rerun-if-changed={}.skt.md", doc.as_ref());
     }
 
     let out_dir = env::var("OUT_DIR").unwrap();
