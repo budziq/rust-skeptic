@@ -301,9 +301,9 @@ fn emit_tests(config: &Config, suite: DocTestSuite) -> Result<(), IoError> {
                 if let Some(ref t) = test.template {
                     let template = doc_test.templates.get(t)
                         .expect(&format!("template {} not found for {}", t, doc_test.path.display()));
-                    try!(create_test_string(config, &Some(template.to_string()), test))
+                    try!(create_test_runner(config, &Some(template.to_string()), test))
                 } else {
-                    try!(create_test_string(config, &doc_test.old_template, test))
+                    try!(create_test_runner(config, &doc_test.old_template, test))
                 }
             };
             out.push_str(&test_string);
@@ -312,13 +312,33 @@ fn emit_tests(config: &Config, suite: DocTestSuite) -> Result<(), IoError> {
     write_if_contents_changed(&config.out_file, &out)
 }
 
-fn create_test_string(config: &Config,
+/// Just like Rustdoc, ignore a "#" sign at the beginning of a line of code.
+/// These are commonly an indication to omit the line from user-facing
+/// documentation but include it for the purpose of playground links or skeptic
+/// testing.
+fn clean_omitted_line(line: &String) -> &str {
+    let trimmed = line.trim_left();
+    if trimmed == "#\n" {
+        &trimmed[1..]
+    } else if trimmed.starts_with("# ") {
+        &trimmed[2..]
+    } else {
+        line
+    }
+}
+
+/// Creates the Rust code that this test will be operating on.
+fn create_test_input(lines: &[String]) -> String {
+    lines.iter().map(clean_omitted_line).collect()
+}
+
+fn create_test_runner(config: &Config,
                       template: &Option<String>,
                       test: &Test)
                       -> Result<String, IoError> {
 
     let template = template.clone().unwrap_or_else(|| String::from("{}"));
-    let test_text = test.text.iter().fold(String::new(), |a, b| format!("{}{}", a, b));
+    let test_text = create_test_input(&test.text);
 
     let mut s: Vec<u8> = Vec::new();
     if test.ignore {
@@ -464,4 +484,31 @@ pub mod rt {
             panic!("Command failed:\n{:?}", command);
         }
     }
+}
+
+#[test]
+fn test_omitted_lines() {
+    let lines = &[
+        "# use std::collections::BTreeMap as Map;\n".to_owned(),
+        "#\n".to_owned(),
+        "#[allow(dead_code)]\n".to_owned(),
+        "fn main() {\n".to_owned(),
+        "    let map = Map::new();\n".to_owned(),
+        "    #\n".to_owned(),
+        "    # let _ = map;\n".to_owned(),
+        "}\n".to_owned(),
+    ];
+
+    let expected = [
+        "use std::collections::BTreeMap as Map;\n",
+        "\n",
+        "#[allow(dead_code)]\n",
+        "fn main() {\n",
+        "    let map = Map::new();\n",
+        "\n",
+        "let _ = map;\n",
+        "}\n",
+    ].concat();
+
+    assert_eq!(create_test_input(lines), expected);
 }
