@@ -216,6 +216,12 @@ fn main() {{
 ```
 <code>```</code>
 
+## Rustdoc-style undisplayed lines with `# `
+
+Like rustdoc, skeptic will remove preceding `# ` from any lines of
+code before compiling them. Hiding such lines during display requires
+custom support in the markdown renderer.
+
 ## License
 
 MIT/Apache-2.0
