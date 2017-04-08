@@ -153,7 +153,7 @@ the document file, but with an additional ".skt.md" template.
 So for example, this file, `README.md`, stores its templates
 in `README.md.skt.md`.
 
-This scheme allows the markdown to be displayed naturally be stock
+This scheme allows the markdown to be displayed naturally by stock
 Markdown renderers without displaying the template itself. The weird
 file extension is similarly so that the templates themselves are
 interpreted as valid markdown.
