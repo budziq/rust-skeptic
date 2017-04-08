@@ -1,6 +1,12 @@
+# 0.9.0
+
+* [Allow omitted lines like rustdoc tests do](https://github.com/brson/rust-skeptic/pull/21)
+
+Contributors: Brian Anderson, David Tolnay
+
 # 0.8.0
 
-- [Introduce more flexible templates](https://github.com/brson/rust-skeptic/pull/20)
+* [Introduce more flexible templates](https://github.com/brson/rust-skeptic/pull/20)
 
 # 0.6.1
 
