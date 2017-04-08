@@ -144,7 +144,7 @@ run.
 This means that - *by default* - Skeptic examples require a `main`
 function, as in all the examples above. Implicit wrapping of examples
 in `main`, and custom injection of `extern crate` statements and crate
-attributes are controlled through document-level templates.
+attributes are controlled through templates.
 
 Templates for a document are located in a separate file, that lives
 next to the document on the filesystem, and has the same full name as
@@ -156,8 +156,7 @@ in `README.md.skt.md`.
 This scheme allows the markdown to be displayed naturally be stock
 Markdown renderers without displaying the template itself. The weird
 file extension is similarly so that the templates themselves are
-interpreted as valid markdown while being easy to ignore based on file
-system.
+interpreted as valid markdown.
 
 Consider this example:
 
@@ -172,7 +171,7 @@ boilerplate. Instead it is annotated `skt-foo`, for _skeptic template
 foo_, like so:
 
 <code>```rust,skt-foo</code>
-```rust,ignore
+```rust,skt-foo
 let p = PathBuf::from("foo");
 println!("{:?}", p);
 ```
