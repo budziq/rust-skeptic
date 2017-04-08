@@ -178,7 +178,7 @@ println!("{:?}", p);
 <code>```</code>
 
 This tells skeptic to look in the template file for another
-markdown block with the same `skt-foo` annotation, and composes
+markdown block with the same `skt-foo` annotation, and compose
 them together using the standard Rust `format!` macro. Here's
 what the template looks like:
 
