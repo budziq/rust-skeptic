@@ -208,7 +208,7 @@ be used as the template for all examples in the doc that are not
 explicitly tagged.
 
 <code>```rust,skeptic-template</code>
-```rust,skeptic-template
+```rust,ignore
 use std::path::PathBuf;
 
 fn main() {{
