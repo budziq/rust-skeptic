@@ -193,28 +193,29 @@ fn main() {{
 ```
 <code>```</code>
 
-Note that in a template, real braces need to be doubled.
-
-## Old-style Skeptic Templates
-
-Since the examples in this README run as written, it doesn't need a
-template, but we can specifiy a no-op template like so:
-
-<code>```rust,skeptic-template</code>
-```rust,skeptic-template
-{}
-```
-<code>```</code>
-
 Templates are [Rust format
 specifiers](http://doc.rust-lang.org/std/fmt/index.html) that must
 take a single argument (i.e. they need to contain the string
 "{}"). See [the (old) template example](template-example.md) for more
 on templates.
 
-Rust Skeptic uses
-[`pulldown-cmark`](https://github.com/google/pulldown-cmark) for
-Markdown parsing.
+Note that in a template, real braces need to be doubled.
+
+## The old-style, document-global template
+
+Within a document, a `rust` code block tagged `skeptic-template` will
+be used as the template for all examples in the doc that are not
+explicitly tagged.
+
+<code>```rust,skeptic-template</code>
+```rust,skeptic-template
+use std::path::PathBuf;
+
+fn main() {{
+    {}
+}}
+```
+<code>```</code>
 
 ## License
 
