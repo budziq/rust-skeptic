@@ -72,7 +72,7 @@ It doesn't really matter what's in here.
 ```
 <code>```</code>
 
-You must summon Rust with The Words of Exampling, "backtick, backtick, backtick, rust", like thus:
+To indicate Rust code, code blocks are labeled `rust`:
 
 <code>```rust</code>
 ```rust
