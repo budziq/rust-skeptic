@@ -1,3 +1,9 @@
+# 0.10.0
+
+* [Force skeptic tests to be located in temporary directory](https://github.com/brson/rust-skeptic/pull/26)
+
+Contributors: Brian Anderson, Michal Budzynski
+
 # 0.9.0
 
 * [Allow omitted lines like rustdoc tests do](https://github.com/brson/rust-skeptic/pull/21)
