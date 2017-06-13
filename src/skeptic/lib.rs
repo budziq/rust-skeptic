@@ -418,7 +418,7 @@ pub mod rt {
 
         write_test_case(testcase_path, test_text);
         compile_test_case(testcase_path, binary_path, rustc, out_dir);
-        run_test_case(binary_path);
+        run_test_case(binary_path, outdir.path());
     }
 
     fn write_test_case(path: &Path, test_text: &str) {
@@ -467,8 +467,11 @@ pub mod rt {
 
         interpret_output(cmd);
     }
-    fn run_test_case(out_path: &Path) {
-        interpret_output(Command::new(out_path));
+
+    fn run_test_case(program_path: &Path, outdir: &Path) {
+        let mut cmd = Command::new(program_path);
+        cmd.current_dir(outdir);
+        interpret_output(cmd);
     }
 
     fn interpret_output(mut command: Command) {
