@@ -1,13 +1,34 @@
 extern crate pulldown_cmark as cmark;
 extern crate tempdir;
+extern crate glob;
 
 use std::env;
 use std::fs::File;
 use std::io::{self, Read, Write, Error as IoError};
 use std::path::{PathBuf, Path};
-use cmark::{Parser, Event, Tag};
 use std::collections::HashMap;
+use cmark::{Parser, Event, Tag};
 
+/// Returns a list of markdown files under a directory
+pub fn markdown_files_of_directory(dir: &str) -> Vec<String> {
+    use glob::{ glob_with, MatchOptions };
+
+    let opts = MatchOptions {
+        case_sensitive: false,
+        require_literal_separator: false,
+        require_literal_leading_dot: false,
+    };
+    let mut out = Vec::new();
+
+    for path in glob_with(&format!("{}/**/*.md", dir), &opts).expect("Failed to read glob pattern")
+                                                             .filter_map(Result::ok) {
+        out.push(path.to_str().unwrap().to_owned());
+    }
+
+    out
+}
+
+/// Generates tests for specified markdown files
 pub fn generate_doc_tests<T: Clone>(docs: &[T]) where T : AsRef<str> {
     // This shortcut is specifically so examples in skeptic's on
     // readme can call this function in non-build.rs contexts, without

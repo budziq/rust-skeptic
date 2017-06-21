@@ -9,6 +9,7 @@ version = "0.10.0"
 [dependencies]
 pulldown-cmark = "0.0.14"
 tempdir = "0.3.5"
+glob = "0.2"
 
 [lib]
 name = "skeptic"
