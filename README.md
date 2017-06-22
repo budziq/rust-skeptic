@@ -34,6 +34,22 @@ fn main() {
 }
 ```
 
+Or, if you want to test multiple markdown files under a directory you
+may use `markdown_files_of_directory` function which will collect them:
+
+```rust,no_run
+extern crate skeptic;
+
+use skeptic::*;
+
+fn main() {
+    let mut mdbook_files = markdown_files_of_directory("book/");
+    mdbook_files.push("README.md".to_owned());
+    generate_doc_tests(&mdbook_files);
+}
+```
+
+
 Finally, in `tests/skeptic.rs` put the following macros to tie the
 generated test cases to `cargo test`:
 
