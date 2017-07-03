@@ -1,3 +1,7 @@
+# 0.10.1
+
+* [Update pulldown-cmark to 0.0.15]((https://github.com/brson/rust-skeptic/pull/33)
+
 # 0.10.0
 
 * [Force skeptic tests to be located in temporary directory](https://github.com/brson/rust-skeptic/pull/26)
