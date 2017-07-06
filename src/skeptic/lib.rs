@@ -318,10 +318,11 @@ fn emit_tests(config: &Config, suite: DocTestSuite) -> Result<(), IoError> {
 /// testing.
 fn clean_omitted_line(line: &String) -> &str {
     let trimmed = line.trim_left();
-    if trimmed == "#\n" {
-        &trimmed[1..]
-    } else if trimmed.starts_with("# ") {
+
+    if trimmed.starts_with("# ") {
         &trimmed[2..]
+    } else if trimmed.starts_with("#") && !trimmed.starts_with("#[") {
+        &trimmed[1..]
     } else {
         line
     }
