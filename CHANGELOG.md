@@ -1,3 +1,9 @@
+# 0.11.0
+
+* [Update Fix problem with duplicate dependency resolution](https://github.com/brson/rust-skeptic/pull/36)
+
+Contributors: Brian Anderson, Michal Budzynski
+
 # 0.10.1
 
 * [Update pulldown-cmark and bump version](https://github.com/brson/rust-skeptic/pull/32)
