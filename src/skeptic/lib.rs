@@ -363,11 +363,13 @@ fn create_test_runner(config: &Config,
     // if we are not running, just compile the test without running it
     if test.no_run {
         try!(writeln!(s,
-            "    skeptic::rt::compile_test(r#\"{}\"#, s);",
+            "    skeptic::rt::compile_test(r#\"{}\"#, r#\"{}\"#, s);",
+            config.root_dir.to_str().unwrap(),
             config.out_dir.to_str().unwrap()));
     } else {
         try!(writeln!(s,
-            "    skeptic::rt::run_test(r#\"{}\"#, s);",
+            "    skeptic::rt::run_test(r#\"{}\"#, r#\"{}\"#, s);",
+            config.root_dir.to_str().unwrap(),
             config.out_dir.to_str().unwrap()));
     }
 
@@ -426,6 +428,7 @@ pub mod rt {
         }
     }
 
+    // An iterator over the root dependencies in a lockfile
     #[derive(Deserialize, Debug)]
     struct CargoLock {
         root: Deps,
@@ -515,10 +518,12 @@ pub mod rt {
         }
     }
 
-    fn get_rlib_dependencies<P: AsRef<Path>>(root_dir: P) -> Result<Vec<Fingerprint>> {
+    // Retrieve the exact dependencies for a given build by
+    // cross-referencing the lockfile with the fingerprint file
+    fn get_rlib_dependencies<P: AsRef<Path>>(root_dir: P, target_dir: P) -> Result<Vec<Fingerprint>> {
         let root_dir = root_dir.as_ref();
+        let target_dir = target_dir.as_ref();
         let lock = CargoLock::from_path(root_dir.join("Cargo.lock"))?;
-        let target_dir = root_dir.join("target/debug/");
         let fingerprint_dir = target_dir.join(".fingerprint/");
 
         let set = lock.collect::<HashSet<_>>();
@@ -551,24 +556,24 @@ pub mod rt {
         )
     }
 
-    pub fn compile_test(out_dir: &str, test_text: &str) {
+    pub fn compile_test(root_dir: &str, out_dir: &str, test_text: &str) {
         let ref rustc = env::var("RUSTC").unwrap_or(String::from("rustc"));
         let ref outdir = TempDir::new("rust-skeptic").unwrap();
         let ref testcase_path = outdir.path().join("test.rs");
         let ref binary_path = outdir.path().join("out.exe");
 
         write_test_case(testcase_path, test_text);
-        compile_test_case(testcase_path, binary_path, rustc, out_dir);
+        compile_test_case(testcase_path, binary_path, rustc, root_dir, out_dir);
     }
 
-    pub fn run_test(out_dir: &str, test_text: &str) {
+    pub fn run_test(root_dir: &str, out_dir: &str, test_text: &str) {
         let ref rustc = env::var("RUSTC").unwrap_or(String::from("rustc"));
         let ref outdir = TempDir::new("rust-skeptic").unwrap();
         let ref testcase_path = outdir.path().join("test.rs");
         let ref binary_path = outdir.path().join("out.exe");
 
         write_test_case(testcase_path, test_text);
-        compile_test_case(testcase_path, binary_path, rustc, out_dir);
+        compile_test_case(testcase_path, binary_path, rustc, root_dir, out_dir);
         run_test_case(binary_path, outdir.path());
     }
 
@@ -577,33 +582,33 @@ pub mod rt {
         file.write_all(test_text.as_bytes()).unwrap();
     }
 
-    fn compile_test_case(in_path: &Path, out_path: &Path, rustc: &str, out_dir: &str) {
+    fn compile_test_case(in_path: &Path, out_path: &Path, rustc: &str, root_dir: &str, out_dir: &str) {
 
-        // FIXME: Hack. Because the test runner uses rustc to build
-        // tests and those tests expect access to the crate this
-        // project builds and its deps, we need to find the directory
-        // containing Cargo's deps to pass as a `-L` flag to
-        // rustc. Cargo does not give us this directly, but we know
-        // relative to OUT_DIR where to look.
+        // OK, here's where a bunch of magic happens using assumptions
+        // about cargo internals. We are going to use rustc to compile
+        // the examples, but to do that we've got to tell it where to
+        // look for the rlibs with the -L flag, and what their names
+        // are with the --extern flag. This is going to involve
+        // parsing fingerprints out of the lockfile and looking them
+        // up in the fingerprint file.
+
+        let root_dir = PathBuf::from(root_dir);
         let mut target_dir = PathBuf::from(out_dir);
         target_dir.pop();
         target_dir.pop();
         target_dir.pop();
         let mut deps_dir = target_dir.clone();
         deps_dir.push("deps");
-        let mut root_dir = target_dir.clone();
-        root_dir.pop();
-        root_dir.pop();
 
         let mut cmd = Command::new(rustc);
         cmd.arg(in_path)
             .arg("--verbose")
             .arg("-o").arg(out_path)
             .arg("--crate-type=bin")
-            .arg("-L").arg(target_dir)
+            .arg("-L").arg(&target_dir)
             .arg("-L").arg(&deps_dir);
 
-        for dep in get_rlib_dependencies(root_dir).expect("failed to read dependencies") {
+        for dep in get_rlib_dependencies(root_dir, target_dir).expect("failed to read dependencies") {
             cmd.arg("--extern");
             cmd.arg(format!("{}={}", dep.libname, dep.rlib.to_str().expect("filename not utf8")));
         }
