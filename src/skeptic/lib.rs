@@ -1,3 +1,7 @@
+#[macro_use]
+extern crate error_chain;
+#[macro_use]
+extern crate serde_derive;
 extern crate pulldown_cmark as cmark;
 extern crate tempdir;
 extern crate glob;
@@ -381,10 +385,11 @@ fn emit_tests(config: &Config, suite: DocTestSuite) -> Result<(), IoError> {
 /// testing.
 fn clean_omitted_line(line: &String) -> &str {
     let trimmed = line.trim_left();
-    if trimmed == "#\n" {
-        &trimmed[1..]
-    } else if trimmed.starts_with("# ") {
+
+    if trimmed.starts_with("# ") {
         &trimmed[2..]
+    } else if trimmed.starts_with("#") && !trimmed.starts_with("#[") {
+        &trimmed[1..]
     } else {
         line
     }
@@ -421,11 +426,13 @@ fn create_test_runner(config: &Config,
     // if we are not running, just compile the test without running it
     if test.no_run {
         try!(writeln!(s,
-            "    skeptic::rt::compile_test(r#\"{}\"#, s);",
+            "    skeptic::rt::compile_test(r#\"{}\"#, r#\"{}\"#, s);",
+            config.root_dir.to_str().unwrap(),
             config.out_dir.to_str().unwrap()));
     } else {
         try!(writeln!(s,
-            "    skeptic::rt::run_test(r#\"{}\"#, s);",
+            "    skeptic::rt::run_test(r#\"{}\"#, r#\"{}\"#, s);",
+            config.root_dir.to_str().unwrap(),
             config.out_dir.to_str().unwrap()));
     }
 
@@ -455,32 +462,181 @@ fn write_if_contents_changed(name: &Path, contents: &str) -> Result<(), IoError>
 }
 
 pub mod rt {
-    use std::env;
-    use std::fs::{self, File};
-    use std::io::{self, Write};
+    extern crate serde;
+    extern crate serde_json;
+    extern crate toml;
+    extern crate walkdir;
+
+    use std::collections::{HashSet, HashMap};
+    use std::collections::hash_map::Entry;
+    use std::time::SystemTime;
+
+    use std::{self, env};
+    use std::fs::File;
+    use std::io::{self, Write, Read};
     use std::path::{Path, PathBuf};
     use std::process::Command;
     use std::ffi::OsStr;
     use tempdir::TempDir;
 
-    pub fn compile_test(out_dir: &str, test_text: &str) {
-        let ref rustc = env::var("RUSTC").unwrap_or(String::from("rustc"));
-        let ref outdir = TempDir::new("rust-skeptic").unwrap();
-        let ref testcase_path = outdir.path().join("test.rs");
-        let ref binary_path = outdir.path().join("out.exe");
+    use self::walkdir::WalkDir;
+    use self::serde_json::Value;
 
-        write_test_case(testcase_path, test_text);
-        compile_test_case(testcase_path, binary_path, rustc, out_dir);
+    error_chain! {
+        errors { Fingerprint }
+        foreign_links {
+            Io(std::io::Error);
+            Toml(toml::de::Error);
+            Json(serde_json::Error);
+        }
     }
 
-    pub fn run_test(out_dir: &str, test_text: &str) {
+    // An iterator over the root dependencies in a lockfile
+    #[derive(Deserialize, Debug)]
+    struct CargoLock {
+        root: Deps,
+    }
+
+    #[derive(Deserialize, Debug)]
+    struct Deps {
+        dependencies: Vec<String>,
+    }
+
+    impl Iterator for CargoLock {
+        type Item = (String, String);
+
+        fn next(&mut self) -> Option<(String, String)> {
+            self.root.dependencies.pop().and_then(|val| {
+                let mut it = val.split_whitespace();
+
+                match (it.next(), it.next()) {
+                    (Some(name), Some(val)) => {
+                        Some((name.replace("-", "_").to_owned(), val.to_owned()))
+                    }
+                    _ => None,
+                }
+            })
+        }
+    }
+
+    impl CargoLock {
+        fn from_path<P: AsRef<Path>>(pth: P) -> Result<CargoLock> {
+            let pth = pth.as_ref();
+            let mut contents = String::new();
+            File::open(pth)?.read_to_string(&mut contents)?;
+            Ok(toml::from_str(&contents)?)
+        }
+    }
+
+    #[derive(Debug)]
+    struct Fingerprint {
+        libname: String,
+        version: String,
+        rlib: PathBuf,
+        mtime: SystemTime,
+    }
+
+    impl Fingerprint {
+        fn from_path<P: AsRef<Path>>(pth: P) -> Result<Fingerprint> {
+            let pth = pth.as_ref();
+
+            let fname = pth.file_stem().and_then(OsStr::to_str).ok_or(
+                ErrorKind::Fingerprint,
+            )?;
+
+            let mut captures = fname.splitn(3, '-');
+            captures.next();
+            match (captures.next(), captures.next(), pth.extension()) {
+                (Some(libname), Some(hash), Some(ext)) if ext == "json" => {
+
+                    let mut rlib = PathBuf::from(pth);
+                    rlib.pop();
+                    rlib.pop();
+                    rlib.pop();
+                    rlib.push(format!("deps/lib{}-{}.rlib", libname, hash));
+
+                    let file = File::open(pth)?;
+                    let mtime = file.metadata()?.modified()?;
+                    let parsed: Value = serde_json::from_reader(file)?;
+                    let vers = parsed["local"]["Precalculated"]
+                .as_str()
+                // fingerprint file sometimes has different form
+                .or_else(|| parsed["local"][0]["Precalculated"].as_str())
+                .ok_or(ErrorKind::Fingerprint)?
+                .to_owned();
+
+                    Ok(Fingerprint {
+                        libname: libname.to_owned(),
+                        version: vers,
+                        rlib: rlib,
+                        mtime: mtime,
+                    })
+                }
+                _ => Err(ErrorKind::Fingerprint.into()),
+            }
+        }
+
+        fn deppair(&self) -> (String, String) {
+            (self.libname.clone(), self.version.clone())
+        }
+    }
+
+    // Retrieve the exact dependencies for a given build by
+    // cross-referencing the lockfile with the fingerprint file
+    fn get_rlib_dependencies<P: AsRef<Path>>(root_dir: P, target_dir: P) -> Result<Vec<Fingerprint>> {
+        let root_dir = root_dir.as_ref();
+        let target_dir = target_dir.as_ref();
+        let lock = CargoLock::from_path(root_dir.join("Cargo.lock"))?;
+        let fingerprint_dir = target_dir.join(".fingerprint/");
+
+        let set = lock.collect::<HashSet<_>>();
+        let mut map: HashMap<String, Fingerprint> = HashMap::new();
+
+        for entry in WalkDir::new(fingerprint_dir)
+            .into_iter()
+            .filter_map(|v| v.ok())
+            .filter_map(|v| Fingerprint::from_path(v.path()).ok())
+        {
+            if set.contains(&entry.deppair()) {
+                let libname = entry.libname.clone();
+                match map.entry(libname) {
+                    Entry::Occupied(mut o) => {
+                        if o.get().mtime < entry.mtime {
+                            o.insert(entry);
+                        }
+                    }
+                    Entry::Vacant(v) => {
+                        v.insert(entry);
+                    }
+                }
+            }
+        }
+
+        Ok(
+            map.into_iter()
+                .filter_map(|(_, val)| if val.rlib.exists() { Some(val) } else { None })
+                .collect(),
+        )
+    }
+
+    pub fn compile_test(root_dir: &str, out_dir: &str, test_text: &str) {
         let ref rustc = env::var("RUSTC").unwrap_or(String::from("rustc"));
         let ref outdir = TempDir::new("rust-skeptic").unwrap();
         let ref testcase_path = outdir.path().join("test.rs");
         let ref binary_path = outdir.path().join("out.exe");
 
         write_test_case(testcase_path, test_text);
-        compile_test_case(testcase_path, binary_path, rustc, out_dir);
+        compile_test_case(testcase_path, binary_path, rustc, root_dir, out_dir);
+    }
+
+    pub fn run_test(root_dir: &str, out_dir: &str, test_text: &str) {
+        let ref rustc = env::var("RUSTC").unwrap_or(String::from("rustc"));
+        let ref outdir = TempDir::new("rust-skeptic").unwrap();
+        let ref testcase_path = outdir.path().join("test.rs");
+        let ref binary_path = outdir.path().join("out.exe");
+
+        write_test_case(testcase_path, test_text);
+        compile_test_case(testcase_path, binary_path, rustc, root_dir, out_dir);
         run_test_case(binary_path, outdir.path());
     }
 
@@ -489,14 +645,17 @@ pub mod rt {
         file.write_all(test_text.as_bytes()).unwrap();
     }
 
-    fn compile_test_case(in_path: &Path, out_path: &Path, rustc: &str, out_dir: &str) {
+    fn compile_test_case(in_path: &Path, out_path: &Path, rustc: &str, root_dir: &str, out_dir: &str) {
 
-        // FIXME: Hack. Because the test runner uses rustc to build
-        // tests and those tests expect access to the crate this
-        // project builds and its deps, we need to find the directory
-        // containing Cargo's deps to pass as a `-L` flag to
-        // rustc. Cargo does not give us this directly, but we know
-        // relative to OUT_DIR where to look.
+        // OK, here's where a bunch of magic happens using assumptions
+        // about cargo internals. We are going to use rustc to compile
+        // the examples, but to do that we've got to tell it where to
+        // look for the rlibs with the -L flag, and what their names
+        // are with the --extern flag. This is going to involve
+        // parsing fingerprints out of the lockfile and looking them
+        // up in the fingerprint file.
+
+        let root_dir = PathBuf::from(root_dir);
         let mut target_dir = PathBuf::from(out_dir);
         target_dir.pop();
         target_dir.pop();
@@ -509,23 +668,12 @@ pub mod rt {
             .arg("--verbose")
             .arg("-o").arg(out_path)
             .arg("--crate-type=bin")
-            .arg("-L").arg(target_dir)
+            .arg("-L").arg(&target_dir)
             .arg("-L").arg(&deps_dir);
 
-        for dep in fs::read_dir(deps_dir).expect("failed to access target/*/deps") {
-            let dep = dep.expect("failed to read files from target/*/deps");
-            let dep = dep.path();
-            if let Some(name) = dep.file_stem().and_then(OsStr::to_str) {
-                if let Some(ext) = dep.extension() {
-                    if ext == "rlib" {
-                        if let Some(libname) = name.rsplitn(2, '-').nth(1) {
-                            let libname = &libname[3..];
-                            cmd.arg("--extern");
-                            cmd.arg(format!("{}={}", libname, dep.to_str().expect("filename not utf8")));
-                        }
-                    }
-                }
-            }
+        for dep in get_rlib_dependencies(root_dir, target_dir).expect("failed to read dependencies") {
+            cmd.arg("--extern");
+            cmd.arg(format!("{}={}", dep.libname, dep.rlib.to_str().expect("filename not utf8")));
         }
 
         interpret_output(cmd);
