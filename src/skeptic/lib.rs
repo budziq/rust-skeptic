@@ -325,8 +325,6 @@ fn clean_omitted_line(line: &String) -> &str {
 
     if trimmed.starts_with("# ") {
         &trimmed[2..]
-    } else if trimmed.starts_with("#") && !trimmed.starts_with("#[") {
-        &trimmed[1..]
     } else {
         line
     }
