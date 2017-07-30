@@ -1,3 +1,12 @@
+# 0.12.0
+
+* [Generate test names using section names and line numbers](https://github.com/brson/rust-skeptic/pull/41/files)
+* [Make handling of `#` more like rustdoc](https://github.com/brson/rust-skeptic/pull/40)
+* [Add support for listing files under a directory](https://github.com/brson/rust-skeptic/pull/31)
+
+Contributors: Brian Anderson, Chris Butler, Michael Howell, Victor
+Polevoy
+
 # 0.11.0
 
 * [Update Fix problem with duplicate dependency resolution](https://github.com/brson/rust-skeptic/pull/36)
