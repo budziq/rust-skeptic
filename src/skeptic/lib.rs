@@ -4,14 +4,77 @@ extern crate error_chain;
 extern crate serde_derive;
 extern crate pulldown_cmark as cmark;
 extern crate tempdir;
+extern crate glob;
 
 use std::env;
 use std::fs::File;
 use std::io::{self, Read, Write, Error as IoError};
 use std::path::{PathBuf, Path};
-use cmark::{Parser, Event, Tag};
 use std::collections::HashMap;
+use cmark::{Parser, Event, Tag};
 
+/// Returns a list of markdown files under a directory.
+/// 
+/// # Usage
+/// 
+/// List markdown files of `mdbook` which are under `<project dir>/book` usually:
+/// 
+/// ```rust
+/// extern crate skeptic;
+/// 
+/// use skeptic::markdown_files_of_directory;
+/// 
+/// fn main() {
+///     let _ = markdown_files_of_directory("book/");
+/// }
+/// ```
+pub fn markdown_files_of_directory(dir: &str) -> Vec<String> {
+    use glob::{ glob_with, MatchOptions };
+
+    let opts = MatchOptions {
+        case_sensitive: false,
+        require_literal_separator: false,
+        require_literal_leading_dot: false,
+    };
+    let mut out = Vec::new();
+
+    for path in glob_with(&format!("{}/**/*.md", dir), &opts).expect("Failed to read glob pattern")
+                                                             .filter_map(Result::ok) {
+        out.push(path.to_str().unwrap().to_owned());
+    }
+
+    out
+}
+
+/// Generates tests for specified markdown files.
+/// 
+/// # Usage
+/// 
+/// Generates doc tests for the specified files.
+/// 
+/// ```rust,no_run
+/// extern crate skeptic;
+/// 
+/// use skeptic::generate_doc_tests;
+/// 
+/// fn main() {
+///     generate_doc_tests(&["README.md"]);
+/// }
+/// ```
+/// 
+/// Or in case you want to add `mdbook` files:
+/// 
+/// ```rust,no_run
+/// extern crate skeptic;
+/// 
+/// use skeptic::*;
+/// 
+/// fn main() {
+///     let mut mdbook_files = markdown_files_of_directory("book/");
+///     mdbook_files.push("README.md".to_owned());
+///     generate_doc_tests(&mdbook_files);
+/// }
+/// ```
 pub fn generate_doc_tests<T: Clone>(docs: &[T]) where T : AsRef<str> {
     // This shortcut is specifically so examples in skeptic's on
     // readme can call this function in non-build.rs contexts, without
@@ -663,4 +726,17 @@ fn test_omitted_lines() {
     ].concat();
 
     assert_eq!(create_test_input(lines), expected);
+}
+
+#[test]
+fn test_markdown_files_of_directory() {
+    let files = vec![
+        "../../CHANGELOG.md",
+        "../../README.md",
+        "../../README.md.skt.md",
+        "../../template-example.md",
+        "../../tests/hashtag-test.md",
+        "../../tests/should-panic-test.md",
+    ];
+    assert_eq!(markdown_files_of_directory("../../"), files);
 }
