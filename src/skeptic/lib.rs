@@ -5,10 +5,12 @@ extern crate serde_derive;
 extern crate pulldown_cmark as cmark;
 extern crate tempdir;
 extern crate glob;
+extern crate bytecount;
 
 use std::env;
 use std::fs::File;
 use std::io::{self, Read, Write, Error as IoError};
+use std::mem;
 use std::path::{PathBuf, Path};
 use std::collections::HashMap;
 use cmark::{Parser, Event, Tag};
@@ -153,6 +155,12 @@ fn extract_tests(config: &Config) -> Result<DocTestSuite, IoError> {
     return Ok(DocTestSuite { doc_tests: doc_tests });
 }
 
+enum Buffer {
+    None,
+    Code(Vec<String>),
+    Header(String),
+}
+
 fn extract_tests_from_file(path: &Path) -> Result<DocTest, IoError> {
     let mut tests = Vec::new();
     // Oh this isn't actually a test but a legacy template
@@ -161,32 +169,59 @@ fn extract_tests_from_file(path: &Path) -> Result<DocTest, IoError> {
     let mut file = try!(File::open(path));
     let ref mut s = String::new();
     try!(file.read_to_string(s));
-    let parser = Parser::new(s);
+    let mut parser = Parser::new(s);
 
-    let mut test_name_gen = TestNameGen::new(path);
-    let mut code_buffer = None;
+    let mut buffer = Buffer::None;
 
-    for event in parser {
+    let ref file_stem = sanitize_test_name(path.file_stem().unwrap().to_str().unwrap());
+    let mut section = None;
+
+    // In order to call get_offset() on the parser,
+    // this loop must not hold an exclusive reference to the parser.
+    loop {
+        let offset = parser.get_offset();
+        let line_number = bytecount::count(&s.as_bytes()[0..offset], b'\n');
+        let event = if let Some(event) = parser.next() {
+            event
+        } else {
+            break;
+        };
         match event {
+            Event::Start(Tag::Header(level)) if level < 3 => {
+                buffer = Buffer::Header(String::new());
+            }
+            Event::End(Tag::Header(level)) if level < 3 => {
+                let cur_buffer = mem::replace(&mut buffer, Buffer::None);
+                if let Buffer::Header(sect) = cur_buffer {
+                    section = Some(sanitize_test_name(&sect));
+                }
+            }
             Event::Start(Tag::CodeBlock(ref info)) => {
                 let code_block_info = parse_code_block_info(info);
                 if code_block_info.is_rust {
-                    code_buffer = Some(Vec::new());
+                    buffer = Buffer::Code(Vec::new());
                 }
             }
             Event::Text(text) => {
-                if let Some(ref mut buf) = code_buffer {
-                    buf.push(text.to_string());
+                if let Buffer::Code(ref mut buf) = buffer {
+                    buf.push(text.into_owned());
+                } else if let Buffer::Header(ref mut buf) = buffer {
+                    buf.push_str(&*text);
                 }
             }
             Event::End(Tag::CodeBlock(ref info)) => {
                 let code_block_info = parse_code_block_info(info);
-                if let Some(buf) = code_buffer.take() {
+                if let Buffer::Code(buf) = mem::replace(&mut buffer, Buffer::None) {
                     if code_block_info.is_old_template {
                         old_template = Some(buf.into_iter().collect())
                     } else {
+                        let name = if let Some(ref section) = section {
+                            format!("{}_sect_{}_line_{}", file_stem, section, line_number)
+                        } else {
+                            format!("{}_line_{}", file_stem, line_number)
+                        };
                         tests.push(Test {
-                            name: test_name_gen.advance(),
+                            name: name,
                             text: buf,
                             ignore: code_block_info.ignore,
                             no_run: code_block_info.no_run,
@@ -254,29 +289,9 @@ fn load_templates(path: &Path) -> Result<HashMap<String, String>, IoError> {
     Ok(map)
 }
 
-struct TestNameGen {
-    root: String,
-    count: i32,
-}
-
-impl TestNameGen {
-    fn new(path: &Path) -> TestNameGen {
-        let ref file_stem = path.file_stem().unwrap().to_str().unwrap().to_string();
-        TestNameGen {
-            root: sanitize_test_name(file_stem),
-            count: 0,
-        }
-    }
-
-    fn advance(&mut self) -> String {
-        let count = self.count;
-        self.count += 1;
-        format!("{}_{}", self.root, count)
-    }
-}
-
 fn sanitize_test_name(s: &str) -> String {
     to_lowercase(s)
+        .trim_matches(|c: char| !c.is_alphanumeric())
         .chars()
         .map(|c| {
             if c.is_alphanumeric() {
@@ -285,7 +300,8 @@ fn sanitize_test_name(s: &str) -> String {
                 '_'
             }
         })
-        .collect()
+        .collect::<String>()
+        .replace("__", "_")
 }
 
 // Only converting test names to lowercase to avoid style lints
