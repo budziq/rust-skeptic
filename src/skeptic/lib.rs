@@ -404,6 +404,9 @@ fn clean_omitted_line(line: &String) -> &str {
 
     if trimmed.starts_with("# ") {
         &trimmed[2..]
+    } else if trimmed.trim_right() == "#" {
+    // line consists of single "#" which might not be followed by newline on windows
+        &trimmed[1..]
     } else {
         line
     }
