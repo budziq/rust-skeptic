@@ -1,3 +1,9 @@
+# 0.12.2
+
+* [Fix problem with missing "Cargo.lock" when in workspace subproject](https://github.com/brson/rust-skeptic/commit/f1be38eb8baa8c2267eb572eac9bb43706b29d8c)
+
+Contributors: Michal Budzynski
+
 # 0.12.1
 
 * [Fix warnings caused by new function naming scheme](https://github.com/brson/rust-skeptic/commit/fa1dcb87505dab899e4abdbf30e27b55620c1f3d)
