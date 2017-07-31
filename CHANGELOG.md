@@ -1,3 +1,10 @@
+# 0.12.1
+
+* [Fix warnings caused by new function naming scheme](https://github.com/brson/rust-skeptic/commit/fa1dcb87505dab899e4abdbf30e27b55620c1f3d)
+* [Fix regressions in `#` handling](https://github.com/brson/rust-skeptic/commit/54841cf789ad787ba3b638267fdc851cea5f7f65)
+
+Contributors: Michal Budzynski
+
 # 0.12.0
 
 * [Generate test names using section names and line numbers](https://github.com/brson/rust-skeptic/pull/41/files)
