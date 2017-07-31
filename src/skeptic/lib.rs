@@ -604,7 +604,15 @@ pub mod rt {
     fn get_rlib_dependencies<P: AsRef<Path>>(root_dir: P, target_dir: P) -> Result<Vec<Fingerprint>> {
         let root_dir = root_dir.as_ref();
         let target_dir = target_dir.as_ref();
-        let lock = CargoLock::from_path(root_dir.join("Cargo.lock"))?;
+        let lock = CargoLock::from_path(root_dir.join("Cargo.lock")).or_else(
+            |_| {
+                // could not find Cargo.lock in $CARGO_MAINFEST_DIR
+                // try relative to target_dir
+                let mut root_dir = PathBuf::from(target_dir);
+                root_dir.pop();
+                root_dir.pop();
+                CargoLock::from_path(root_dir.join("Cargo.lock"))
+            })?;
         let fingerprint_dir = target_dir.join(".fingerprint/");
 
         let set = lock.collect::<HashSet<_>>();
