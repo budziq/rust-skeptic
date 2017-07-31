@@ -302,6 +302,7 @@ fn sanitize_test_name(s: &str) -> String {
         })
         .collect::<String>()
         .replace("__", "_")
+        .replace("__", "_") // remove also odd "_" occurences
 }
 
 // Only converting test names to lowercase to avoid style lints
