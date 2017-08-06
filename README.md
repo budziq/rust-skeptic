@@ -30,12 +30,16 @@ In `build.rs` write this to test all Rust code blocks in `README.md`:
 extern crate skeptic;
 
 fn main() {
+    // generates doc tests for `README.md`.
     skeptic::generate_doc_tests(&["README.md"]);
 }
 ```
 
-Or, if you want to test multiple markdown files under a directory you
-may use `markdown_files_of_directory` function which will collect them:
+If you want to test multiple markdown files, you just need to build 
+a list of filenames and supply that to `generate_doc_tests`. To help
+you, the method `markdown_files_of_directory` with create such a list
+enumerating the markdown files in the specified directory. You can add
+more files to this list as you like:
 
 ```rust,no_run
 extern crate skeptic;
@@ -43,7 +47,9 @@ extern crate skeptic;
 use skeptic::*;
 
 fn main() {
+    // Add all markdown files in directory "book/".
     let mut mdbook_files = markdown_files_of_directory("book/");
+    // Also add "README.md" to the list of files.
     mdbook_files.push("README.md".to_owned());
     generate_doc_tests(&mdbook_files);
 }
