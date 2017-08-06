@@ -37,7 +37,7 @@ fn main() {
 
 If you want to test multiple markdown files, you just need to build 
 a list of filenames and supply that to `generate_doc_tests`. To help
-you, the method `markdown_files_of_directory` with create such a list
+you, the method `markdown_files_of_directory` will create such a list,
 enumerating the markdown files in the specified directory. You can add
 more files to this list as you like:
 
