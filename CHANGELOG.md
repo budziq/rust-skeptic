@@ -1,3 +1,10 @@
+# 0.12.3
+
+* [Improved auto-generated test case name sensitization](https://github.com/brson/rust-skeptic/commit/3e384a6bd6c55ac7013cccbb22bb8c49c2dc6be0)
+* [Clarified build.rs example documentation](https://github.com/brson/rust-skeptic/commit/9dd2087403c28a49f7149f7b9594cdad65ebc3a7)
+
+Contributors: Michal Budzynski, Frank McSherry
+
 # 0.12.2
 
 * [Fix problem with missing "Cargo.lock" when in workspace subproject](https://github.com/brson/rust-skeptic/commit/f1be38eb8baa8c2267eb572eac9bb43706b29d8c)
