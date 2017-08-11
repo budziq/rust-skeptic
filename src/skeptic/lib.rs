@@ -290,27 +290,15 @@ fn load_templates(path: &Path) -> Result<HashMap<String, String>, IoError> {
 }
 
 fn sanitize_test_name(s: &str) -> String {
-    to_lowercase(s)
-        .trim_matches(|c: char| !c.is_alphanumeric())
-        .chars()
-        .map(|c| {
-            if c.is_alphanumeric() {
-                c
-            } else {
-                '_'
-            }
-        })
-        .collect::<String>()
-        .replace("__", "_")
-        .replace("__", "_") // remove also odd "_" occurences
-}
-
-// Only converting test names to lowercase to avoid style lints
-// against test functions.
-fn to_lowercase(s: &str) -> String {
     use std::ascii::AsciiExt;
-    // FIXME: unicode
     s.to_ascii_lowercase()
+        .chars()
+        .map(|ch| if ch.is_ascii() && ch.is_alphanumeric() { ch } else { '_' })
+        .collect::<String>()
+        .split("_")
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("_")
 }
 
 fn parse_code_block_info(info: &str) -> CodeBlockInfo {
@@ -762,7 +750,17 @@ fn test_markdown_files_of_directory() {
         "../../README.md.skt.md",
         "../../template-example.md",
         "../../tests/hashtag-test.md",
+        "../../tests/section-names.md",
         "../../tests/should-panic-test.md",
     ];
     assert_eq!(markdown_files_of_directory("../../"), files);
+}
+
+#[test]
+fn test_sanitization_of_testnames() {
+    assert_eq!(sanitize_test_name("My_Fun"), "my_fun");
+    assert_eq!(sanitize_test_name("__my_fun_"), "my_fun");
+    assert_eq!(sanitize_test_name("^$@__my@#_fun#$@"), "my_fun");
+    assert_eq!(sanitize_test_name("my_long__fun___name___with____a_____lot______of_______spaces"), "my_long_fun_name_with_a_lot_of_spaces");
+    assert_eq!(sanitize_test_name("Löwe 老虎 Léopard"), "l_we_l_opard");
 }
