@@ -508,6 +508,11 @@ pub mod rt {
         dependencies: Vec<String>,
     }
 
+    enum CompileType{
+        Full,
+        Check,
+    }
+
     impl Iterator for CargoLock {
         type Item = (String, String);
 
@@ -640,7 +645,7 @@ pub mod rt {
         let ref binary_path = outdir.path().join("out.exe");
 
         write_test_case(testcase_path, test_text);
-        compile_test_case(testcase_path, binary_path, rustc, root_dir, out_dir);
+        compile_test_case(testcase_path, binary_path, rustc, root_dir, out_dir, CompileType::Check);
     }
 
     pub fn run_test(root_dir: &str, out_dir: &str, test_text: &str) {
@@ -650,7 +655,7 @@ pub mod rt {
         let ref binary_path = outdir.path().join("out.exe");
 
         write_test_case(testcase_path, test_text);
-        compile_test_case(testcase_path, binary_path, rustc, root_dir, out_dir);
+        compile_test_case(testcase_path, binary_path, rustc, root_dir, out_dir, CompileType::Full);
         run_test_case(binary_path, outdir.path());
     }
 
@@ -659,7 +664,7 @@ pub mod rt {
         file.write_all(test_text.as_bytes()).unwrap();
     }
 
-    fn compile_test_case(in_path: &Path, out_path: &Path, rustc: &str, root_dir: &str, out_dir: &str) {
+    fn compile_test_case(in_path: &Path, out_path: &Path, rustc: &str, root_dir: &str, out_dir: &str, compile_type: CompileType) {
 
         // OK, here's where a bunch of magic happens using assumptions
         // about cargo internals. We are going to use rustc to compile
@@ -680,7 +685,6 @@ pub mod rt {
         let mut cmd = Command::new(rustc);
         cmd.arg(in_path)
             .arg("--verbose")
-            .arg("-o").arg(out_path)
             .arg("--crate-type=bin")
             .arg("-L").arg(&target_dir)
             .arg("-L").arg(&deps_dir);
@@ -689,6 +693,11 @@ pub mod rt {
             cmd.arg("--extern");
             cmd.arg(format!("{}={}", dep.libname, dep.rlib.to_str().expect("filename not utf8")));
         }
+
+        match compile_type {
+            CompileType::Full => cmd.arg("-o").arg(out_path),
+            CompileType::Check => cmd.arg(format!("--emit=dep-info={0}.d,metadata={0}.m", out_path.display())),
+        };
 
         interpret_output(cmd);
     }
