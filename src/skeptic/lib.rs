@@ -473,7 +473,7 @@ pub mod rt {
     extern crate toml;
     extern crate walkdir;
 
-    use std::collections::{HashSet, HashMap};
+    use std::collections::HashMap;
     use std::collections::hash_map::Entry;
     use std::time::SystemTime;
 
@@ -542,7 +542,7 @@ pub mod rt {
     #[derive(Debug)]
     struct Fingerprint {
         libname: String,
-        version: String,
+        version: Option<String>, // version might not be present on path or vcs deps
         rlib: PathBuf,
         mtime: SystemTime,
     }
@@ -573,8 +573,7 @@ pub mod rt {
                 .as_str()
                 // fingerprint file sometimes has different form
                 .or_else(|| parsed["local"][0]["Precalculated"].as_str())
-                .ok_or(ErrorKind::Fingerprint)?
-                .to_owned();
+                .map(|v| v.to_owned());
 
                     Ok(Fingerprint {
                         libname: libname.to_owned(),
@@ -587,8 +586,12 @@ pub mod rt {
             }
         }
 
-        fn deppair(&self) -> (String, String) {
-            (self.libname.clone(), self.version.clone())
+        fn name(&self) -> String {
+            self.libname.clone()
+        }
+
+        fn version(&self) -> Option<String> {
+            self.version.clone()
         }
     }
 
@@ -605,34 +608,42 @@ pub mod rt {
                 root_dir.pop();
                 root_dir.pop();
                 CargoLock::from_path(root_dir.join("Cargo.lock"))
-            })?;
+            },
+        )?;
         let fingerprint_dir = target_dir.join(".fingerprint/");
 
-        let set = lock.collect::<HashSet<_>>();
-        let mut map: HashMap<String, Fingerprint> = HashMap::new();
+        let locked_deps: HashMap<String, String> = lock.collect();
+        let mut found_deps: HashMap<String, Fingerprint> = HashMap::new();
 
-        for entry in WalkDir::new(fingerprint_dir)
+        for finger in WalkDir::new(fingerprint_dir)
             .into_iter()
             .filter_map(|v| v.ok())
             .filter_map(|v| Fingerprint::from_path(v.path()).ok())
         {
-            if set.contains(&entry.deppair()) {
-                let libname = entry.libname.clone();
-                match map.entry(libname) {
-                    Entry::Occupied(mut o) => {
-                        if o.get().mtime < entry.mtime {
-                            o.insert(entry);
+            if let Some(locked_ver) = locked_deps.get(&finger.name()) {
+                // TODO this should be refactored to something more readable
+                match (found_deps.entry(finger.name()), finger.version()) {
+                    (Entry::Occupied(mut e), Some(ver)) => {
+                        // we find better match only if it is exact version match
+                        // and has fresher build time
+                        if *locked_ver == ver && e.get().mtime < finger.mtime {
+                            e.insert(finger);
                         }
                     }
-                    Entry::Vacant(v) => {
-                        v.insert(entry);
+                    (Entry::Vacant(e), ver) => {
+                        // we se exact match or unversioned version
+                        if ver.unwrap_or(locked_ver.clone()) == *locked_ver {
+                            e.insert(finger);
+                        }
                     }
+                    _ => (),
                 }
             }
         }
 
         Ok(
-            map.into_iter()
+            found_deps
+                .into_iter()
                 .filter_map(|(_, val)| if val.rlib.exists() { Some(val) } else { None })
                 .collect(),
         )
