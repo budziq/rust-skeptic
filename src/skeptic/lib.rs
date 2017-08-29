@@ -30,7 +30,7 @@ use cmark::{Parser, Event, Tag};
 ///     let _ = markdown_files_of_directory("book/");
 /// }
 /// ```
-pub fn markdown_files_of_directory(dir: &str) -> Vec<String> {
+pub fn markdown_files_of_directory(dir: &str) -> Vec<PathBuf> {
     use glob::{ glob_with, MatchOptions };
 
     let opts = MatchOptions {
@@ -42,7 +42,7 @@ pub fn markdown_files_of_directory(dir: &str) -> Vec<String> {
 
     for path in glob_with(&format!("{}/**/*.md", dir), &opts).expect("Failed to read glob pattern")
                                                              .filter_map(Result::ok) {
-        out.push(path.to_str().unwrap().to_owned());
+        out.push(path.to_str().unwrap().into());
     }
 
     out
@@ -73,11 +73,11 @@ pub fn markdown_files_of_directory(dir: &str) -> Vec<String> {
 /// 
 /// fn main() {
 ///     let mut mdbook_files = markdown_files_of_directory("book/");
-///     mdbook_files.push("README.md".to_owned());
+///     mdbook_files.push("README.md".into());
 ///     generate_doc_tests(&mdbook_files);
 /// }
 /// ```
-pub fn generate_doc_tests<T: Clone>(docs: &[T]) where T : AsRef<str> {
+pub fn generate_doc_tests<T: Clone>(docs: &[T]) where T : AsRef<Path> {
     // This shortcut is specifically so examples in skeptic's on
     // readme can call this function in non-build.rs contexts, without
     // panicking below.
@@ -85,15 +85,19 @@ pub fn generate_doc_tests<T: Clone>(docs: &[T]) where T : AsRef<str> {
         return;
     }
 
-    let docs = docs.iter().cloned().filter(|d| {
-        !d.as_ref().ends_with(".skt.md")
-    }).collect::<Vec<_>>();
+    let docs = docs.iter()
+        .cloned()
+        .map(|path| path.as_ref().to_str().unwrap().to_owned())
+        .filter(|d| {
+            !d.ends_with(".skt.md")
+        })
+        .collect::<Vec<_>>();
 
     // Inform cargo that it needs to rerun the build script if one of the skeptic files are
     // modified
     for doc in &docs {
-        println!("cargo:rerun-if-changed={}", doc.as_ref());
-        println!("cargo:rerun-if-changed={}.skt.md", doc.as_ref());
+        println!("cargo:rerun-if-changed={}", doc);
+        println!("cargo:rerun-if-changed={}.skt.md", doc);
     }
 
     let out_dir = env::var("OUT_DIR").unwrap();
@@ -106,7 +110,7 @@ pub fn generate_doc_tests<T: Clone>(docs: &[T]) where T : AsRef<str> {
         out_dir: PathBuf::from(out_dir),
         root_dir: PathBuf::from(cargo_manifest_dir),
         out_file: out_file,
-        docs: docs.iter().map(|s| s.as_ref().to_string()).collect(),
+        docs,
     };
 
     run(config);
@@ -773,6 +777,7 @@ fn test_markdown_files_of_directory() {
         "../../tests/section-names.md",
         "../../tests/should-panic-test.md",
     ];
+    let files: Vec<PathBuf> = files.iter().map(PathBuf::from).collect();
     assert_eq!(markdown_files_of_directory("../../"), files);
 }
 
