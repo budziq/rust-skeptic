@@ -193,6 +193,7 @@ fn extract_tests_from_string(s: &mut String, file_stem: &String, old_template: &
     let mut buffer = Buffer::None;
     let mut parser = Parser::new(s);
     let mut section = None;
+    let mut code_block_start = 0;
 
 
     loop {
@@ -221,6 +222,9 @@ fn extract_tests_from_string(s: &mut String, file_stem: &String, old_template: &
             }
             Event::Text(text) => {
                 if let Buffer::Code(ref mut buf) = buffer {
+                    if buf.is_empty() {
+                        code_block_start = line_number;
+                    }
                     buf.push(text.into_owned());
                 } else if let Buffer::Header(ref mut buf) = buffer {
                     buf.push_str(&*text);
@@ -235,7 +239,7 @@ fn extract_tests_from_string(s: &mut String, file_stem: &String, old_template: &
                         let name = if let Some(ref section) = section {
                             format!("{}_sect_{}_line_{}", file_stem, section, line_number)
                         } else {
-                            format!("{}_line_{}", file_stem, line_number)
+                            format!("{}_line_{}", file_stem, code_block_start)
                         };
                         tests.push(Test {
                             name: name,
@@ -796,35 +800,38 @@ fn test_sanitization_of_testnames() {
 }
 
 #[test]
-fn line_numbers_displayed_are_for_the_end_of_each_code_block() {
+fn line_numbers_displayed_are_for_the_beginning_of_each_code_block() {
     let lines = &[
         "Rust code that should panic when running it.",
         "",
-        "```rust,should_panic",
+        "```rust,should_panic",//3
         "fn main() {",
         "    panic!(\"I should panic\");",
-        "}",//6
+        "}",
         "```",
         "",
         "Rust code that should panic when compiling it.",
         "",
-        "```rust,no_run,should_panic",
+        "```rust,no_run,should_panic",//11
         "fn add(a: u32, b: u32) -> u32 {",
         "    a + b",
         "}",
         "",
         "fn main() {",
         "    add(1);",
-        "}",//18
+        "}",
         "```",
     ];
-    let mut old_template = None;
 
-    let tests = extract_tests_from_string(&mut create_test_input(&to_pseudo_file(lines)), &String::from("blah"), &mut old_template);
+    let tests = extract_tests_from_string(
+        &mut create_test_input(&to_pseudo_file(lines)),
+        &String::from("blah"),
+        &mut None
+    );
 
     let test_names: Vec<String> = tests.into_iter().map(|test| get_line_number_from_test_name(test)).collect();
 
-    assert_eq!(test_names, vec!("6", "18"));
+    assert_eq!(test_names, vec!("3", "11"));
 }
 
 #[cfg(test)]
