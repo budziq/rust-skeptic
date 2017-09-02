@@ -237,7 +237,7 @@ fn extract_tests_from_string(s: &mut String, file_stem: &String, old_template: &
                         *old_template = Some(buf.into_iter().collect())
                     } else {
                         let name = if let Some(ref section) = section {
-                            format!("{}_sect_{}_line_{}", file_stem, section, line_number)
+                            format!("{}_sect_{}_line_{}", file_stem, section, code_block_start)
                         } else {
                             format!("{}_line_{}", file_stem, code_block_start)
                         };
@@ -832,6 +832,49 @@ fn line_numbers_displayed_are_for_the_beginning_of_each_code_block() {
     let test_names: Vec<String> = tests.into_iter().map(|test| get_line_number_from_test_name(test)).collect();
 
     assert_eq!(test_names, vec!("3", "11"));
+}
+
+
+#[test]
+fn line_numbers_displayed_are_for_the_beginning_of_each_section() {
+    let lines = &[
+        "## Test Case  Names   With    weird     spacing       are        generated      without        error.",
+        "",
+        "```rust", //3
+        "struct Person<'a>(&'a str);",
+        "fn main() {",
+        "  let _ = Person(\"bors\");",
+        "}",
+        "```",
+        "",
+        "## !@#$ Test Cases )(() with {}[] non alphanumeric characters ^$23 characters are \"`#`\" generated correctly @#$@#$  22.",
+        "",
+        "```rust", //12
+        "struct Person<'a>(&'a str);",
+        "fn main() {",
+        "  let _ = Person(\"bors\");",
+        "}",
+        "```",
+        "",
+        "## Test cases with non ASCII ö_老虎_é characters are generated correctly.",
+        "",
+        "```rust",//21
+        "struct Person<'a>(&'a str);",
+        "fn main() {",
+        "  let _ = Person(\"bors\");",
+        "}",
+        "```",
+    ];
+
+    let tests = extract_tests_from_string(
+        &mut create_test_input(&to_pseudo_file(lines)),
+        &String::from("blah"),
+        &mut None
+    );
+
+    let test_names: Vec<String> = tests.into_iter().map(|test| get_line_number_from_test_name(test)).collect();
+
+    assert_eq!(test_names, vec!("3", "12", "21"));
 }
 
 #[cfg(test)]
