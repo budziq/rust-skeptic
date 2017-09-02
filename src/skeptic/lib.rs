@@ -173,30 +173,30 @@ fn extract_tests_from_file(path: &Path) -> Result<DocTest, IoError> {
     try!(file.read_to_string(s));
 
     let ref file_stem = sanitize_test_name(path.file_stem().unwrap().to_str().unwrap());
-    // Oh this isn't actually a test but a legacy template
-    let mut old_template = None;
 
-    // In order to call get_offset() on the parser,
-    // this loop must not hold an exclusive reference to the parser.
-    let tests = extract_tests_from_string(s, file_stem, &mut old_template);
+    let tests = extract_tests_from_string(s, file_stem);
 
     let templates = load_templates(path)?;
 
     Ok(DocTest {
         path: path.to_owned(),
-        old_template: old_template,
-        tests: tests,
+        old_template: tests.1,
+        tests: tests.0,
         templates: templates,
     })
 }
 
-fn extract_tests_from_string(s: &mut String, file_stem: &String, old_template: &mut Option<String>) -> Vec<Test> {
+fn extract_tests_from_string(s: &String, file_stem: &String) -> (Vec<Test>, Option<String>) {
     let mut tests = Vec::new();
     let mut buffer = Buffer::None;
     let mut parser = Parser::new(s);
     let mut section = None;
+    let mut code_block_start = 0;
+    // Oh this isn't actually a test but a legacy template
+    let mut old_template = None;
 
-
+    // In order to call get_offset() on the parser,
+    // this loop must not hold an exclusive reference to the parser.
     loop {
         let offset = parser.get_offset();
         let line_number = bytecount::count(&s.as_bytes()[0..offset], b'\n');
@@ -223,6 +223,9 @@ fn extract_tests_from_string(s: &mut String, file_stem: &String, old_template: &
             }
             Event::Text(text) => {
                 if let Buffer::Code(ref mut buf) = buffer {
+                    if buf.is_empty() {
+                        code_block_start = line_number;
+                    }
                     buf.push(text.into_owned());
                 } else if let Buffer::Header(ref mut buf) = buffer {
                     buf.push_str(&*text);
@@ -232,12 +235,12 @@ fn extract_tests_from_string(s: &mut String, file_stem: &String, old_template: &
                 let code_block_info = parse_code_block_info(info);
                 if let Buffer::Code(buf) = mem::replace(&mut buffer, Buffer::None) {
                     if code_block_info.is_old_template {
-                        *old_template = Some(buf.into_iter().collect())
+                        old_template = Some(buf.into_iter().collect())
                     } else {
                         let name = if let Some(ref section) = section {
-                            format!("{}_sect_{}_line_{}", file_stem, section, line_number)
+                            format!("{}_sect_{}_line_{}", file_stem, section, code_block_start)
                         } else {
-                            format!("{}_line_{}", file_stem, line_number)
+                            format!("{}_line_{}", file_stem, code_block_start)
                         };
                         tests.push(Test {
                             name: name,
@@ -253,7 +256,7 @@ fn extract_tests_from_string(s: &mut String, file_stem: &String, old_template: &
             _ => (),
         }
     }
-    tests
+    (tests, old_template)
 }
 
 fn load_templates(path: &Path) -> Result<HashMap<String, String>, IoError> {
@@ -748,95 +751,180 @@ pub mod rt {
     }
 }
 
-#[test]
-fn test_omitted_lines() {
-    let lines = &[
-        "# use std::collections::BTreeMap as Map;",
-        "#",
-        "#[allow(dead_code)]",
-        "fn main() {",
-        "    let map = Map::new();",
-        "    #",
-        "    # let _ = map;",
-        "}",
-    ];
-
-    let expected = [
-        "use std::collections::BTreeMap as Map;\n",
-        "\n",
-        "#[allow(dead_code)]\n",
-        "fn main() {\n",
-        "    let map = Map::new();\n",
-        "\n",
-        "let _ = map;\n",
-        "}\n",
-    ].concat();
-
-    assert_eq!(create_test_input(&to_pseudo_file(lines)), expected);
-}
-
-#[test]
-fn test_markdown_files_of_directory() {
-    let files = vec![
-        "../../CHANGELOG.md",
-        "../../README.md",
-        "../../README.md.skt.md",
-        "../../template-example.md",
-        "../../tests/hashtag-test.md",
-        "../../tests/section-names.md",
-        "../../tests/should-panic-test.md",
-    ];
-    let files: Vec<PathBuf> = files.iter().map(PathBuf::from).collect();
-    assert_eq!(markdown_files_of_directory("../../"), files);
-}
-
-#[test]
-fn test_sanitization_of_testnames() {
-    assert_eq!(sanitize_test_name("My_Fun"), "my_fun");
-    assert_eq!(sanitize_test_name("__my_fun_"), "my_fun");
-    assert_eq!(sanitize_test_name("^$@__my@#_fun#$@"), "my_fun");
-    assert_eq!(sanitize_test_name("my_long__fun___name___with____a_____lot______of_______spaces"), "my_long_fun_name_with_a_lot_of_spaces");
-    assert_eq!(sanitize_test_name("Löwe 老虎 Léopard"), "l_we_l_opard");
-}
-
-#[test]
-fn line_numbers_displayed_are_for_the_end_of_each_code_block() {
-    let lines = &[
-        "Rust code that should panic when running it.",
-        "",
-        "```rust,should_panic",
-        "fn main() {",
-        "    panic!(\"I should panic\");",
-        "}",//6
-        "```",
-        "",
-        "Rust code that should panic when compiling it.",
-        "",
-        "```rust,no_run,should_panic",
-        "fn add(a: u32, b: u32) -> u32 {",
-        "    a + b",
-        "}",
-        "",
-        "fn main() {",
-        "    add(1);",
-        "}",//18
-        "```",
-    ];
-    let mut old_template = None;
-
-    let tests = extract_tests_from_string(&mut create_test_input(&to_pseudo_file(lines)), &String::from("blah"), &mut old_template);
-
-    let test_names: Vec<String> = tests.into_iter().map(|test| get_line_number_from_test_name(test)).collect();
-
-    assert_eq!(test_names, vec!("6", "18"));
-}
-
 #[cfg(test)]
-fn get_line_number_from_test_name(test: Test) -> String {
-    String::from(test.name.split("_").last().expect("There were no underscores!"))
-}
+mod tests {
+    extern crate unindent;
 
-#[cfg(test)]
-fn to_pseudo_file(lines: &[&str]) -> Vec<String> {
-    lines.iter().map(|line| format!("{}{}", *line, "\n")).collect()
+    use super::*;
+    use self::unindent::unindent;
+
+    #[test]
+    fn test_omitted_lines() {
+        let lines = unindent(r###"
+            # use std::collections::BTreeMap as Map;
+            #
+            #[allow(dead_code)]
+            fn main() {
+                let map = Map::new();
+                #
+                # let _ = map;
+            }"###);
+
+        let expected = unindent(r###"
+            use std::collections::BTreeMap as Map;
+
+            #[allow(dead_code)]
+            fn main() {
+                let map = Map::new();
+
+            let _ = map;
+            }
+            "###);
+
+        assert_eq!(create_test_input(&get_lines(lines)), expected);
+    }
+
+    #[test]
+    fn test_markdown_files_of_directory() {
+        let files = vec![
+            "../../CHANGELOG.md",
+            "../../README.md",
+            "../../README.md.skt.md",
+            "../../template-example.md",
+            "../../tests/hashtag-test.md",
+            "../../tests/section-names.md",
+            "../../tests/should-panic-test.md",
+        ];
+        let files: Vec<PathBuf> = files.iter().map(PathBuf::from).collect();
+        assert_eq!(markdown_files_of_directory("../../"), files);
+    }
+
+    #[test]
+    fn test_sanitization_of_testnames() {
+        assert_eq!(sanitize_test_name("My_Fun"), "my_fun");
+        assert_eq!(sanitize_test_name("__my_fun_"), "my_fun");
+        assert_eq!(sanitize_test_name("^$@__my@#_fun#$@"), "my_fun");
+        assert_eq!(sanitize_test_name("my_long__fun___name___with____a_____lot______of_______spaces"), "my_long_fun_name_with_a_lot_of_spaces");
+        assert_eq!(sanitize_test_name("Löwe 老虎 Léopard"), "l_we_l_opard");
+    }
+
+    #[test]
+    fn line_numbers_displayed_are_for_the_beginning_of_each_code_block() {
+        let lines = unindent(r###"
+            Rust code that should panic when running it.
+
+            ```rust,should_panic",/
+            fn main() {
+                panic!(\"I should panic\");
+            }
+            ```
+
+            Rust code that should panic when compiling it.
+
+            ```rust,no_run,should_panic",//
+            fn add(a: u32, b: u32) -> u32 {
+                a + b
+            }
+
+            fn main() {
+                add(1);
+            }
+            ```"###);
+
+
+        let tests = extract_tests_from_string(&create_test_input(&get_lines(lines)), &String::from("blah")
+        );
+
+        let test_names: Vec<String> = tests.0.into_iter().map(|test| get_line_number_from_test_name(test)).collect();
+
+        assert_eq!(test_names, vec!("3", "11"));
+    }
+
+
+    #[test]
+    fn line_numbers_displayed_are_for_the_beginning_of_each_section() {
+        let lines = unindent(r###"
+            ## Test Case  Names   With    weird     spacing       are        generated      without        error.
+
+            ```rust", /
+            struct Person<'a>(&'a str);
+            fn main() {
+              let _ = Person(\"bors\");
+            }
+            ```
+
+            ## !@#$ Test Cases )(() with {}[] non alphanumeric characters ^$23 characters are \"`#`\" generated correctly @#$@#$  22.
+
+            ```rust", //
+            struct Person<'a>(&'a str);
+            fn main() {
+              let _ = Person(\"bors\");
+            }
+            ```
+
+            ## Test cases with non ASCII ö_老虎_é characters are generated correctly.
+
+            ```rust",//
+            struct Person<'a>(&'a str);
+            fn main() {
+              let _ = Person(\"bors\");
+            }
+            ```"###);
+
+        let tests = extract_tests_from_string(&create_test_input(&get_lines(lines)), &String::from("blah"));
+
+        let test_names: Vec<String> = tests.0.into_iter().map(|test| get_line_number_from_test_name(test)).collect();
+
+        assert_eq!(test_names, vec!("3", "12", "21"));
+    }
+
+    #[test]
+    fn old_template_is_returned_for_old_skeptic_template_format() {
+        let lines = unindent(r###"
+            ```rust,skeptic-template
+            ```rust,ignore
+            use std::path::PathBuf;
+
+            fn main() {{
+                {}
+            }}
+            ```
+            ```
+            "###);
+        let expected = unindent(r###"
+            ```rust,ignore
+            use std::path::PathBuf;
+
+            fn main() {{
+                {}
+            }}
+            "###);
+        let tests = extract_tests_from_string(&create_test_input(&get_lines(lines)), &String::from("blah"));
+        assert_eq!(tests.1, Some(expected));
+    }
+
+    #[test]
+    fn old_template_is_not_returned_if_old_skeptic_template_is_not_specified() {
+        let lines = unindent(r###"
+            ```rust", /
+            struct Person<'a>(&'a str);
+            fn main() {
+              let _ = Person(\"bors\");
+            }
+            ```
+            "###);
+        let tests = extract_tests_from_string(&create_test_input(&get_lines(lines)), &String::from("blah"));
+        assert_eq!(tests.1, None);
+    }
+
+
+    fn get_line_number_from_test_name(test: Test) -> String {
+        String::from(test.name.split("_").last().expect("There were no underscores!"))
+    }
+
+    fn get_lines(lines: String) -> Vec<String> {
+        lines.split("\n")
+            .map(|string_slice| format!("{}\n", string_slice))//restore line endings since they are removed by split.
+            .collect()
+    }
 }
