@@ -2,6 +2,9 @@
 
 Test your Rust Markdown via Cargo.
 
+[![Build Status](https://travis-ci.org/budziq/rust-skeptic.svg?branch=master)](https://travis-ci.org/budziq/rust-skeptic)
+[![Build status](https://ci.appveyor.com/api/projects/status/l1f74hon37wt2vce/branch/master?svg=true)](https://ci.appveyor.com/project/budziq/rust-skeptic/branch/master)
+
 ## Getting started
 
 Put this in `Cargo.toml` to add the `skeptic` dependency:
