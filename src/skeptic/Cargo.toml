@@ -3,8 +3,17 @@ authors = ["Brian Anderson <banderson@mozilla.com>"]
 description = "Test your Rust markdown documentation via Cargo"
 license = "MIT/Apache-2.0"
 name = "skeptic"
-repository = "https://github.com/brson/rust-skeptic"
 version = "0.12.3"
+readme = "README.md"
+repository = "https://github.com/budziq/rust-skeptic"
+homepage = "https://github.com/budziq/rust-skeptic"
+documentation = "https://docs.rs/skeptic"
+keywords = ["markdown", "documentation", "testing"]
+categories = ["development-tools", "development-tools::testing"]
+
+[badges]
+travis-ci = { repository = "budziq/rust-skeptic" }
+appveyor = { repository = "budziq/rust-skeptic" }
 
 [dependencies]
 pulldown-cmark = "0.1.0"

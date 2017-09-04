@@ -1,9 +1,11 @@
 # Be a Rust Documentation Skeptic
 
-Test your Rust Markdown via Cargo.
+[![Unix build status](https://travis-ci.org/budziq/rust-skeptic.svg?branch=master)](https://travis-ci.org/budziq/rust-skeptic)
+[![Windows build status](https://ci.appveyor.com/api/projects/status/l1f74hon37wt2vce/branch/master?svg=true)](https://ci.appveyor.com/project/budziq/rust-skeptic/branch/master)
+[![crates.io](https://img.shields.io/crates/v/skeptic.svg)](https://crates.io/crates/skeptic)
+[![Documentation](https://docs.rs/skeptic/badge.svg)](https://docs.rs/skeptic)
 
-[![Build Status](https://travis-ci.org/budziq/rust-skeptic.svg?branch=master)](https://travis-ci.org/budziq/rust-skeptic)
-[![Build status](https://ci.appveyor.com/api/projects/status/l1f74hon37wt2vce/branch/master?svg=true)](https://ci.appveyor.com/project/budziq/rust-skeptic/branch/master)
+Test your Rust Markdown via Cargo.
 
 ## Getting started
 
