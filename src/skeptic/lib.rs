@@ -110,6 +110,7 @@ pub fn generate_doc_tests<T: Clone>(docs: &[T]) where T : AsRef<Path> {
         out_dir: PathBuf::from(out_dir),
         root_dir: PathBuf::from(cargo_manifest_dir),
         out_file: out_file,
+        target_triple: env::var("TARGET").expect("could not get target triple"),
         docs,
     };
 
@@ -120,6 +121,7 @@ struct Config {
     out_dir: PathBuf,
     root_dir: PathBuf,
     out_file: PathBuf,
+    target_triple: String,
     docs: Vec<String>,
 }
 
@@ -436,14 +438,16 @@ fn create_test_runner(config: &Config,
     // if we are not running, just compile the test without running it
     if test.no_run {
         try!(writeln!(s,
-            "    skeptic::rt::compile_test(r#\"{}\"#, r#\"{}\"#, s);",
+            "    skeptic::rt::compile_test(r#\"{}\"#, r#\"{}\"#, r#\"{}\"#, s);",
             config.root_dir.to_str().unwrap(),
-            config.out_dir.to_str().unwrap()));
+            config.out_dir.to_str().unwrap(),
+            config.target_triple));
     } else {
         try!(writeln!(s,
-            "    skeptic::rt::run_test(r#\"{}\"#, r#\"{}\"#, s);",
+            "    skeptic::rt::run_test(r#\"{}\"#, r#\"{}\"#, r#\"{}\"#, s);",
             config.root_dir.to_str().unwrap(),
-            config.out_dir.to_str().unwrap()));
+            config.out_dir.to_str().unwrap(),
+            config.target_triple));
     }
 
     try!(writeln!(s, "}}"));
@@ -653,24 +657,24 @@ pub mod rt {
         )
     }
 
-    pub fn compile_test(root_dir: &str, out_dir: &str, test_text: &str) {
+    pub fn compile_test(root_dir: &str, out_dir: &str, target_triple: &str, test_text: &str) {
         let ref rustc = env::var("RUSTC").unwrap_or(String::from("rustc"));
         let ref outdir = TempDir::new("rust-skeptic").unwrap();
         let ref testcase_path = outdir.path().join("test.rs");
         let ref binary_path = outdir.path().join("out.exe");
 
         write_test_case(testcase_path, test_text);
-        compile_test_case(testcase_path, binary_path, rustc, root_dir, out_dir, CompileType::Check);
+        compile_test_case(testcase_path, binary_path, rustc, root_dir, out_dir, target_triple, CompileType::Check);
     }
 
-    pub fn run_test(root_dir: &str, out_dir: &str, test_text: &str) {
+    pub fn run_test(root_dir: &str, out_dir: &str, target_triple: &str, test_text: &str) {
         let ref rustc = env::var("RUSTC").unwrap_or(String::from("rustc"));
         let ref outdir = TempDir::new("rust-skeptic").unwrap();
         let ref testcase_path = outdir.path().join("test.rs");
         let ref binary_path = outdir.path().join("out.exe");
 
         write_test_case(testcase_path, test_text);
-        compile_test_case(testcase_path, binary_path, rustc, root_dir, out_dir, CompileType::Full);
+        compile_test_case(testcase_path, binary_path, rustc, root_dir, out_dir, target_triple, CompileType::Full);
         run_test_case(binary_path, outdir.path());
     }
 
@@ -679,7 +683,7 @@ pub mod rt {
         file.write_all(test_text.as_bytes()).unwrap();
     }
 
-    fn compile_test_case(in_path: &Path, out_path: &Path, rustc: &str, root_dir: &str, out_dir: &str, compile_type: CompileType) {
+    fn compile_test_case(in_path: &Path, out_path: &Path, rustc: &str, root_dir: &str, out_dir: &str, target_triple: &str, compile_type: CompileType) {
 
         // OK, here's where a bunch of magic happens using assumptions
         // about cargo internals. We are going to use rustc to compile
@@ -702,7 +706,8 @@ pub mod rt {
             .arg("--verbose")
             .arg("--crate-type=bin")
             .arg("-L").arg(&target_dir)
-            .arg("-L").arg(&deps_dir);
+            .arg("-L").arg(&deps_dir)
+            .arg("--target").arg(&target_triple);
 
         for dep in get_rlib_dependencies(root_dir, target_dir).expect("failed to read dependencies") {
             cmd.arg("--extern");

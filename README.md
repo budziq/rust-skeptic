@@ -26,7 +26,7 @@ of Markdown files.
 
 In `build.rs` write this to test all Rust code blocks in `README.md`:
 
-```rust
+```rust,no_run
 extern crate skeptic;
 
 fn main() {
