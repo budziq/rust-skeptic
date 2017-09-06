@@ -476,7 +476,6 @@ fn write_if_contents_changed(name: &Path, contents: &str) -> Result<(), IoError>
 }
 
 pub mod rt {
-    extern crate serde;
     extern crate serde_json;
     extern crate toml;
     extern crate walkdir;
