@@ -117,7 +117,7 @@ where
         docs,
     };
 
-    run(config);
+    run(&config);
 }
 
 struct Config {
@@ -128,7 +128,7 @@ struct Config {
     docs: Vec<String>,
 }
 
-fn run(ref config: Config) {
+fn run(config: &Config) {
     let tests = extract_tests(config).unwrap();
     emit_tests(config, tests).unwrap();
 }
@@ -156,12 +156,12 @@ struct DocTest {
 fn extract_tests(config: &Config) -> Result<DocTestSuite, IoError> {
     let mut doc_tests = Vec::new();
     for doc in &config.docs {
-        let ref mut path = config.root_dir.clone();
+        let path = &mut config.root_dir.clone();
         path.push(doc);
         let new_tests = extract_tests_from_file(path)?;
         doc_tests.push(new_tests);
     }
-    return Ok(DocTestSuite { doc_tests: doc_tests });
+    Ok(DocTestSuite { doc_tests: doc_tests })
 }
 
 enum Buffer {
@@ -172,10 +172,10 @@ enum Buffer {
 
 fn extract_tests_from_file(path: &Path) -> Result<DocTest, IoError> {
     let mut file = File::open(path)?;
-    let ref mut s = String::new();
+    let s = &mut String::new();
     file.read_to_string(s)?;
 
-    let ref file_stem = sanitize_test_name(path.file_stem().unwrap().to_str().unwrap());
+    let file_stem = &sanitize_test_name(path.file_stem().unwrap().to_str().unwrap());
 
     let tests = extract_tests_from_string(s, file_stem);
 
@@ -189,7 +189,7 @@ fn extract_tests_from_file(path: &Path) -> Result<DocTest, IoError> {
     })
 }
 
-fn extract_tests_from_string(s: &String, file_stem: &String) -> (Vec<Test>, Option<String>) {
+fn extract_tests_from_string(s: &str, file_stem: &str) -> (Vec<Test>, Option<String>) {
     let mut tests = Vec::new();
     let mut buffer = Buffer::None;
     let mut parser = Parser::new(s);
@@ -275,7 +275,7 @@ fn load_templates(path: &Path) -> Result<HashMap<String, String>, IoError> {
     let mut map = HashMap::new();
 
     let mut file = File::open(path)?;
-    let ref mut s = String::new();
+    let s = &mut String::new();
     file.read_to_string(s)?;
     let parser = Parser::new(s);
 
@@ -319,7 +319,7 @@ fn sanitize_test_name(s: &str) -> String {
             '_'
         })
         .collect::<String>()
-        .split("_")
+        .split('_')
         .filter(|s| !s.is_empty())
         .collect::<Vec<_>>()
         .join("_")
@@ -415,7 +415,7 @@ fn emit_tests(config: &Config, suite: DocTestSuite) -> Result<(), IoError> {
 /// These are commonly an indication to omit the line from user-facing
 /// documentation but include it for the purpose of playground links or skeptic
 /// testing.
-fn clean_omitted_line(line: &String) -> &str {
+fn clean_omitted_line(line: &str) -> &str {
     let trimmed = line.trim_left();
 
     if trimmed.starts_with("# ") {
@@ -430,7 +430,7 @@ fn clean_omitted_line(line: &String) -> &str {
 
 /// Creates the Rust code that this test will be operating on.
 fn create_test_input(lines: &[String]) -> String {
-    lines.iter().map(clean_omitted_line).collect()
+    lines.iter().map(|s| clean_omitted_line(s).to_owned()).collect()
 }
 
 fn create_test_runner(
@@ -499,7 +499,7 @@ fn write_if_contents_changed(name: &Path, contents: &str) -> Result<(), IoError>
         Err(err) => return Err(err),
     }
     let mut file = File::create(name)?;
-    file.write(contents.as_bytes())?;
+    file.write_all(contents.as_bytes())?;
     Ok(())
 }
 
@@ -543,6 +543,7 @@ pub mod rt {
         dependencies: Vec<String>,
     }
 
+    #[derive(Clone, Copy)]
     enum CompileType {
         Full,
         Check,
@@ -670,7 +671,7 @@ pub mod rt {
                     }
                     (Entry::Vacant(e), ver) => {
                         // we se exact match or unversioned version
-                        if ver.unwrap_or(locked_ver.clone()) == *locked_ver {
+                        if ver.unwrap_or_else(|| locked_ver.clone()) == *locked_ver {
                             e.insert(finger);
                         }
                     }
@@ -688,10 +689,10 @@ pub mod rt {
     }
 
     pub fn compile_test(root_dir: &str, out_dir: &str, target_triple: &str, test_text: &str) {
-        let ref rustc = env::var("RUSTC").unwrap_or(String::from("rustc"));
-        let ref outdir = TempDir::new("rust-skeptic").unwrap();
-        let ref testcase_path = outdir.path().join("test.rs");
-        let ref binary_path = outdir.path().join("out.exe");
+        let rustc = &env::var("RUSTC").unwrap_or_else(|_| String::from("rustc"));
+        let outdir = &TempDir::new("rust-skeptic").unwrap();
+        let testcase_path = &outdir.path().join("test.rs");
+        let binary_path = &outdir.path().join("out.exe");
 
         write_test_case(testcase_path, test_text);
         compile_test_case(
@@ -706,10 +707,10 @@ pub mod rt {
     }
 
     pub fn run_test(root_dir: &str, out_dir: &str, target_triple: &str, test_text: &str) {
-        let ref rustc = env::var("RUSTC").unwrap_or(String::from("rustc"));
-        let ref outdir = TempDir::new("rust-skeptic").unwrap();
-        let ref testcase_path = outdir.path().join("test.rs");
-        let ref binary_path = outdir.path().join("out.exe");
+        let rustc = &env::var("RUSTC").unwrap_or_else(|_| String::from("rustc"));
+        let outdir = &TempDir::new("rust-skeptic").unwrap();
+        let testcase_path = &outdir.path().join("test.rs");
+        let binary_path = &outdir.path().join("out.exe");
 
         write_test_case(testcase_path, test_text);
         compile_test_case(
@@ -1011,13 +1012,13 @@ mod tests {
 
 
     fn get_line_number_from_test_name(test: Test) -> String {
-        String::from(test.name.split("_").last().expect(
+        String::from(test.name.split('_').last().expect(
             "There were no underscores!",
         ))
     }
 
     fn get_lines(lines: String) -> Vec<String> {
-        lines.split("\n")
+        lines.split('\n')
             .map(|string_slice| format!("{}\n", string_slice))//restore line endings since they are removed by split.
             .collect()
     }
