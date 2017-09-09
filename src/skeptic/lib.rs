@@ -430,7 +430,10 @@ fn clean_omitted_line(line: &str) -> &str {
 
 /// Creates the Rust code that this test will be operating on.
 fn create_test_input(lines: &[String]) -> String {
-    lines.iter().map(|s| clean_omitted_line(s).to_owned()).collect()
+    lines
+        .iter()
+        .map(|s| clean_omitted_line(s).to_owned())
+        .collect()
 }
 
 fn create_test_runner(
@@ -591,35 +594,36 @@ pub mod rt {
                 ErrorKind::Fingerprint,
             )?;
 
+            pth.extension()
+                .and_then(|e| if e == "json" { Some(e) } else { None })
+                .ok_or(ErrorKind::Fingerprint)?;
+
             let mut captures = fname.splitn(3, '-');
             captures.next();
-            match (captures.next(), captures.next(), pth.extension()) {
-                (Some(libname), Some(hash), Some(ext)) if ext == "json" => {
+            let libname = captures.next().ok_or(ErrorKind::Fingerprint)?;
+            let hash = captures.next().ok_or(ErrorKind::Fingerprint)?;
 
-                    let mut rlib = PathBuf::from(pth);
-                    rlib.pop();
-                    rlib.pop();
-                    rlib.pop();
-                    rlib.push(format!("deps/lib{}-{}.rlib", libname, hash));
+            let mut rlib = PathBuf::from(pth);
+            rlib.pop();
+            rlib.pop();
+            rlib.pop();
+            rlib.push(format!("deps/lib{}-{}.rlib", libname, hash));
 
-                    let file = File::open(pth)?;
-                    let mtime = file.metadata()?.modified()?;
-                    let parsed: Value = serde_json::from_reader(file)?;
-                    let vers = parsed["local"]["Precalculated"]
+            let file = File::open(pth)?;
+            let mtime = file.metadata()?.modified()?;
+            let parsed: Value = serde_json::from_reader(file)?;
+            let vers = parsed["local"]["Precalculated"]
                 .as_str()
                 // fingerprint file sometimes has different form
                 .or_else(|| parsed["local"][0]["Precalculated"].as_str())
                 .map(|v| v.to_owned());
 
-                    Ok(Fingerprint {
-                        libname: libname.to_owned(),
-                        version: vers,
-                        rlib: rlib,
-                        mtime: mtime,
-                    })
-                }
-                _ => Err(ErrorKind::Fingerprint.into()),
-            }
+            Ok(Fingerprint {
+                libname: libname.to_owned(),
+                version: vers,
+                rlib: rlib,
+                mtime: mtime,
+            })
         }
 
         fn name(&self) -> String {
@@ -649,8 +653,8 @@ pub mod rt {
                 CargoLock::from_path(root_dir.join("Cargo.lock"))
             },
         )?;
-        let fingerprint_dir = target_dir.join(".fingerprint/");
 
+        let fingerprint_dir = target_dir.join(".fingerprint/");
         let locked_deps: HashMap<String, String> = lock.collect();
         let mut found_deps: HashMap<String, Fingerprint> = HashMap::new();
 
