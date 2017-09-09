@@ -1,22 +1,32 @@
+# 0.13.0
+
+* [Fixed test line numbers](https://github.com/budziq/rust-skeptic/commit/5fce0912ad2538b48ff47bfd07530c16288519e0)
+* [Refactored test extraction logic](https://github.com/budziq/rust-skeptic/commit/75b6ca56811f9c6383c5e1813c4571abb9c455ab)
+* [Fixed failing test under windows](https://github.com/budziq/rust-skeptic/commit/8d0ee743a72920705f88474cb64b0af05ec4713a)
+* [Fixed path and vcs dependency resolution](https://github.com/budziq/rust-skeptic/commit/8bfbebace429ef15679ffe4e7da0d289066728cb)
+* [Improved speed of `no_run` tests](https://github.com/budziq/rust-skeptic/commit/9de430dc1f51cc1cc1afdd8ff9a019ce355ad711)
+
+Contributors: Michał Budzyński, Simon Baptista
+
 # 0.12.3
 
-* [Improved auto-generated test case name sensitization](https://github.com/budziq/rust-skeptic/commit/3e384a6bd6c55ac7013cccbb22bb8c49c2dc6be0)
+* [Improved auto-generated test case name sanitization](https://github.com/budziq/rust-skeptic/commit/3e384a6bd6c55ac7013cccbb22bb8c49c2dc6be0)
 * [Clarified build.rs example documentation](https://github.com/budziq/rust-skeptic/commit/9dd2087403c28a49f7149f7b9594cdad65ebc3a7)
 
-Contributors: Michal Budzynski, Frank McSherry
+Contributors: Michał Budzyński, Frank McSherry
 
 # 0.12.2
 
 * [Fix problem with missing "Cargo.lock" when in workspace subproject](https://github.com/budziq/rust-skeptic/commit/f1be38eb8baa8c2267eb572eac9bb43706b29d8c)
 
-Contributors: Michal Budzynski
+Contributors: Michał Budzyński
 
 # 0.12.1
 
 * [Fix warnings caused by new function naming scheme](https://github.com/budziq/rust-skeptic/commit/fa1dcb87505dab899e4abdbf30e27b55620c1f3d)
 * [Fix regressions in `#` handling](https://github.com/budziq/rust-skeptic/commit/54841cf789ad787ba3b638267fdc851cea5f7f65)
 
-Contributors: Michal Budzynski
+Contributors: Michał Budzyński
 
 # 0.12.0
 
@@ -31,20 +41,20 @@ Polevoy
 
 * [Update Fix problem with duplicate dependency resolution](https://github.com/budziq/rust-skeptic/pull/36)
 
-Contributors: Brian Anderson, Michal Budzynski
+Contributors: Brian Anderson, Michał Budzyński
 
 # 0.10.1
 
 * [Update pulldown-cmark and bump version](https://github.com/budziq/rust-skeptic/pull/32)
 * [Corrected test errors with windows line endings on '#' hidden sections](https://github.com/budziq/rust-skeptic/pull/35)
 
-Contributors: Brian Anderson, Michal Budzynski
+Contributors: Brian Anderson, Michał Budzyński
 
 # 0.10.0
 
 * [Force skeptic tests to be located in temporary directory](https://github.com/budziq/rust-skeptic/pull/26)
 
-Contributors: Brian Anderson, Michal Budzynski
+Contributors: Brian Anderson, Michał Budzyński
 
 # 0.9.0
 

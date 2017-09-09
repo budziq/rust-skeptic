@@ -10,5 +10,4 @@ fn main() {
             "tests/section-names.md",
         ],
     );
-    // skeptic::generate_doc_tests(&skeptic::markdown_files_of_directory("."));
 }
