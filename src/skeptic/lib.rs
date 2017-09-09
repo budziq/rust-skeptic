@@ -856,16 +856,12 @@ mod tests {
     #[test]
     fn test_markdown_files_of_directory() {
         let files = vec![
-            "../../CHANGELOG.md",
-            "../../README.md",
-            "../../README.md.skt.md",
-            "../../template-example.md",
             "../../tests/hashtag-test.md",
             "../../tests/section-names.md",
             "../../tests/should-panic-test.md",
         ];
         let files: Vec<PathBuf> = files.iter().map(PathBuf::from).collect();
-        assert_eq!(markdown_files_of_directory("../../"), files);
+        assert_eq!(markdown_files_of_directory("../../tests/"), files);
     }
 
     #[test]
