@@ -1,3 +1,9 @@
+# 0.13.1
+
+* [Prevented pulldown-cmark from pulling getopt dependency](https://github.com/budziq/rust-skeptic/pull/64)
+
+Contributors: Michał Budzyński
+
 # 0.13.0
 
 * [Fixed test line numbers](https://github.com/budziq/rust-skeptic/commit/5fce0912ad2538b48ff47bfd07530c16288519e0)
