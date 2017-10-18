@@ -1,7 +1,5 @@
 #[macro_use]
 extern crate error_chain;
-#[macro_use]
-extern crate serde_derive;
 extern crate pulldown_cmark as cmark;
 extern crate tempdir;
 extern crate glob;
@@ -508,7 +506,7 @@ fn write_if_contents_changed(name: &Path, contents: &str) -> Result<(), IoError>
 
 pub mod rt {
     extern crate serde_json;
-    extern crate toml;
+    extern crate cargo_metadata;
     extern crate walkdir;
 
     use std::collections::HashMap;
@@ -517,7 +515,7 @@ pub mod rt {
 
     use std::{self, env};
     use std::fs::File;
-    use std::io::{self, Write, Read};
+    use std::io::{self, Write};
     use std::path::{Path, PathBuf};
     use std::process::Command;
     use std::ffi::OsStr;
@@ -530,20 +528,9 @@ pub mod rt {
         errors { Fingerprint }
         foreign_links {
             Io(std::io::Error);
-            Toml(toml::de::Error);
+            Metadata(cargo_metadata::Error);
             Json(serde_json::Error);
         }
-    }
-
-    // An iterator over the root dependencies in a lockfile
-    #[derive(Deserialize, Debug)]
-    struct CargoLock {
-        root: Deps,
-    }
-
-    #[derive(Deserialize, Debug)]
-    struct Deps {
-        dependencies: Vec<String>,
     }
 
     #[derive(Clone, Copy)]
@@ -552,11 +539,32 @@ pub mod rt {
         Check,
     }
 
-    impl Iterator for CargoLock {
+    // An iterator over the root dependencies in a lockfile
+    #[derive(Debug)]
+    struct LockedDeps {
+        dependencies: Vec<String>,
+    }
+
+    impl LockedDeps {
+        fn from_path<P: AsRef<Path>>(pth: P) -> Result<LockedDeps> {
+            let pth = pth.as_ref().join("Cargo.toml");
+            let metadata = cargo_metadata::metadata_deps(Some(&pth), true)?;
+            let workspace_members = metadata.workspace_members;
+            let deps = metadata.resolve.ok_or("Missing dependency metadata")?
+                .nodes
+                .into_iter()
+                .filter(|node| workspace_members.contains(&node.id))
+                .flat_map(|node| node.dependencies.into_iter());
+
+            Ok(LockedDeps { dependencies: deps.collect() })
+        }
+    }
+
+    impl Iterator for LockedDeps {
         type Item = (String, String);
 
         fn next(&mut self) -> Option<(String, String)> {
-            self.root.dependencies.pop().and_then(|val| {
+            self.dependencies.pop().and_then(|val| {
                 let mut it = val.split_whitespace();
 
                 match (it.next(), it.next()) {
@@ -566,15 +574,6 @@ pub mod rt {
                     _ => None,
                 }
             })
-        }
-    }
-
-    impl CargoLock {
-        fn from_path<P: AsRef<Path>>(pth: P) -> Result<CargoLock> {
-            let pth = pth.as_ref();
-            let mut contents = String::new();
-            File::open(pth)?.read_to_string(&mut contents)?;
-            Ok(toml::from_str(&contents)?)
         }
     }
 
@@ -643,14 +642,14 @@ pub mod rt {
     ) -> Result<Vec<Fingerprint>> {
         let root_dir = root_dir.as_ref();
         let target_dir = target_dir.as_ref();
-        let lock = CargoLock::from_path(root_dir.join("Cargo.lock")).or_else(
+        let lock = LockedDeps::from_path(root_dir).or_else(
             |_| {
                 // could not find Cargo.lock in $CARGO_MAINFEST_DIR
                 // try relative to target_dir
                 let mut root_dir = PathBuf::from(target_dir);
                 root_dir.pop();
                 root_dir.pop();
-                CargoLock::from_path(root_dir.join("Cargo.lock"))
+                LockedDeps::from_path(root_dir)
             },
         )?;
 
