@@ -554,7 +554,8 @@ pub mod rt {
                 .nodes
                 .into_iter()
                 .filter(|node| workspace_members.contains(&node.id))
-                .flat_map(|node| node.dependencies.into_iter());
+                .flat_map(|node| node.dependencies.into_iter())
+                .chain(workspace_members.clone());
 
             Ok(LockedDeps { dependencies: deps.collect() })
         }
