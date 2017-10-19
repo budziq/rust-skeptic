@@ -1,3 +1,10 @@
+# 0.13.2
+
+* [Fixed testfails on cargo beta due to missing root in Cargo.lock](https://github.com/budziq/rust-skeptic/pull/66)
+* [Fixed linking problems when workspace members were rebuild without clean](https://github.com/budziq/rust-skeptic/pull/66)
+
+Contributors: Michał Budzyński
+
 # 0.13.1
 
 * [Prevented pulldown-cmark from pulling getopt dependency](https://github.com/budziq/rust-skeptic/pull/64)
