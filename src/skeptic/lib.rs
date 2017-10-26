@@ -98,7 +98,11 @@ where
     // modified
     for doc in &docs {
         println!("cargo:rerun-if-changed={}", doc);
-        println!("cargo:rerun-if-changed={}.skt.md", doc);
+
+        let skt = format!("{}.skt.md", doc);
+        if Path::new(&skt).exists() {
+            println!("cargo:rerun-if-changed={}", skt);
+        }
     }
 
     let out_dir = env::var("OUT_DIR").unwrap();
