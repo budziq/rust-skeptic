@@ -641,6 +641,40 @@ pub mod rt {
             })
         }
 
+        fn correct_compiler(&self) -> bool {
+
+            let pth = format!("/tmp/{}.rs", self.libname);
+
+            write!(
+                File::create(&pth).unwrap(),
+                "extern crate {}; {}",
+                self.libname, "fn main(){}"
+            ).unwrap();
+
+            let rustc = &env::var("RUSTC").unwrap_or_else(|_| String::from("rustc"));
+            let mut cmd = Command::new(rustc);
+            cmd.arg(&pth)
+                .arg("--extern")
+                .arg(format!(
+                    "{}={}",
+                    self.libname,
+                    self.rlib.to_str().expect("filename not utf8"),
+                ));
+/*
+            cmd.arg(format!(
+                "--emit=dep-info={0}.d,metadata={0}.m",
+                pth
+            ));
+*/
+
+            let output = cmd.output().unwrap();
+            if String::from_utf8(output.stderr).unwrap().contains("error[E0514]") {
+                //panic!("{:?}", self.rlib);
+                return false;
+            }
+            true
+        }
+
         fn name(&self) -> String {
             self.libname.clone()
         }
@@ -684,13 +718,13 @@ pub mod rt {
                     (Entry::Occupied(mut e), Some(ver)) => {
                         // we find better match only if it is exact version match
                         // and has fresher build time
-                        if *locked_ver == ver && e.get().mtime < finger.mtime {
+                        if *locked_ver == ver && e.get().mtime < finger.mtime && finger.correct_compiler() {
                             e.insert(finger);
                         }
                     }
                     (Entry::Vacant(e), ver) => {
                         // we see an exact match or unversioned version
-                        if ver.unwrap_or_else(|| locked_ver.clone()) == *locked_ver {
+                        if ver.unwrap_or_else(|| locked_ver.clone()) == *locked_ver  && finger.correct_compiler() {
                             e.insert(finger);
                         }
                     }
