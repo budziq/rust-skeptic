@@ -590,6 +590,16 @@ pub mod rt {
         mtime: SystemTime,
     }
 
+    fn guess_ext(mut pth: PathBuf, exts: &[&str]) -> Result<PathBuf> {
+        for ext in exts {
+            pth.set_extension(ext);
+            if pth.exists() {
+                return Ok(pth);
+            }
+        }
+        Err(ErrorKind::Fingerprint.into())
+    }
+
     impl Fingerprint {
         fn from_path<P: AsRef<Path>>(pth: P) -> Result<Fingerprint> {
             let pth = pth.as_ref();
@@ -611,7 +621,8 @@ pub mod rt {
             rlib.pop();
             rlib.pop();
             rlib.pop();
-            rlib.push(format!("deps/lib{}-{}.rlib", libname, hash));
+            rlib.push(format!("deps/lib{}-{}", libname, hash));
+            rlib = guess_ext(rlib, &["rlib", "so", "dylib", "dll"])?;
 
             let file = File::open(pth)?;
             let mtime = file.metadata()?.modified()?;
@@ -678,7 +689,7 @@ pub mod rt {
                         }
                     }
                     (Entry::Vacant(e), ver) => {
-                        // we se exact match or unversioned version
+                        // we see an exact match or unversioned version
                         if ver.unwrap_or_else(|| locked_ver.clone()) == *locked_ver {
                             e.insert(finger);
                         }
@@ -783,7 +794,7 @@ pub mod rt {
             cmd.arg(format!(
                 "{}={}",
                 dep.libname,
-                dep.rlib.to_str().expect("filename not utf8")
+                dep.rlib.to_str().expect("filename not utf8"),
             ));
         }
 
