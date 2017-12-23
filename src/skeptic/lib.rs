@@ -116,7 +116,7 @@ where
         root_dir: PathBuf::from(cargo_manifest_dir),
         out_file: out_file,
         target_triple: env::var("TARGET").expect("could not get target triple"),
-        docs,
+        docs: docs,
     };
 
     run(&config);
