@@ -617,12 +617,21 @@ pub mod rt {
             let libname = captures.next().ok_or(ErrorKind::Fingerprint)?;
             let hash = captures.next().ok_or(ErrorKind::Fingerprint)?;
 
+            if libname.contains("serde_derive") {
+                panic!("serde_DERIVE1!!");
+            }
+
             let mut rlib = PathBuf::from(pth);
             rlib.pop();
             rlib.pop();
             rlib.pop();
             rlib.push(format!("deps/lib{}-{}", libname, hash));
-            rlib = guess_ext(rlib, &["rlib", "so", "dylib", "dll"])?;
+            rlib = guess_ext(rlib.clone(), &["rlib", "so", "dylib", "dll"])
+                .or_else(|_| {
+                    rlib.pop();
+                    rlib.push(format!("{}-{}", libname, hash));
+                    guess_ext(rlib, &["dylib", "dll"])
+                })?;
 
             let file = File::open(pth)?;
             let mtime = file.metadata()?.modified()?;
@@ -678,6 +687,8 @@ pub mod rt {
             .filter_map(|v| v.ok())
             .filter_map(|v| Fingerprint::from_path(v.path()).ok())
         {
+            found_deps.entry(finger.name()).or_insert(finger);
+            /*
             if let Some(locked_ver) = locked_deps.get(&finger.name()) {
                 // TODO this should be refactored to something more readable
                 match (found_deps.entry(finger.name()), finger.version()) {
@@ -696,8 +707,11 @@ pub mod rt {
                     }
                     _ => (),
                 }
-            }
+            }*/
         }
+
+
+        panic!(format!("=====================\n{:?}\n================",found_deps));
 
         Ok(
             found_deps
@@ -790,6 +804,11 @@ pub mod rt {
             "failed to read dependencies",
         )
         {
+
+            if dep.libname.contains("serde_derive") {
+              panic!(format!("{:?} serde_DERIVE3!!", dep));
+            }
+
             cmd.arg("--extern");
             cmd.arg(format!(
                 "{}={}",
