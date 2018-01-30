@@ -22,7 +22,7 @@ glob = "0.2"
 walkdir = "2.0"
 serde_json = "1.0.3"
 cargo_metadata = "0.3"
-bytecount = "0.2.0"
+bytecount = "0.3.1"
 
 [dev-dependencies]
 unindent = "0.1.0"
