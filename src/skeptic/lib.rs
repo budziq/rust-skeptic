@@ -157,7 +157,7 @@ impl TextToFormat {
 
 struct Test {
     name: String,
-    text: TextToFormat,
+    text: Vec<TextToFormat>,
     ignore: bool,
     no_run: bool,
     should_panic: bool,
@@ -214,6 +214,8 @@ fn extract_tests_from_string(s: &str, path: &Path, file_stem: &str, templates: &
     // Oh this isn't actually a test but a legacy template
     let mut old_template: Option<String> = None;
 
+    let mut combined_tests: HashMap<String, Test> = HashMap::new();
+
     // In order to call get_offset() on the parser,
     // this loop must not hold an exclusive reference to the parser.
     loop {
@@ -253,7 +255,41 @@ fn extract_tests_from_string(s: &str, path: &Path, file_stem: &str, templates: &
             Event::End(Tag::CodeBlock(ref info)) => {
                 let code_block_info = parse_code_block_info(info);
                 if let Buffer::Code(buf) = mem::replace(&mut buffer, Buffer::None) {
-                    if code_block_info.is_old_template {
+                    let template = match &code_block_info.template_name {
+                        &None => "{}\n".into(),
+                        &Some(ref template_name) =>
+                            templates.get(template_name).expect(&format!(
+                                "template {} not found for {}",
+                                template_name,
+                                path.display()
+                            )).clone()
+                    };
+
+                    if !code_block_info.part_of.is_empty() {
+                        assert!(!code_block_info.is_old_template,
+                                "'sk-part-of-...' is not allowed in legacy templates");
+                        assert!(!code_block_info.ignore,
+                                "'sk-part-of-...' can't be combined with 'ignore'");
+                        let text = create_test_input(&buf);
+                        for part_name in &code_block_info.part_of {
+                            let t = combined_tests.entry(part_name.clone()).or_insert(
+                                Test {
+                                    name: format!("{}_{}", file_stem, sanitize_test_name(part_name)),
+                                    text: Vec::new(),
+                                    ignore: false,
+                                    no_run: false,
+                                    should_panic: false,
+                                    template_name: None,
+                                }
+                            );
+                            t.text.push(TextToFormat {
+                                template: template.clone(),
+                                arg: text.clone(),
+                            });
+                            t.no_run = t.no_run || code_block_info.no_run;
+                            t.should_panic = t.should_panic || code_block_info.should_panic;
+                        }
+                    } else if code_block_info.is_old_template {
                         old_template = Some(buf.into_iter().collect())
                     } else {
                         let name = if let Some(ref section) = section {
@@ -263,22 +299,14 @@ fn extract_tests_from_string(s: &str, path: &Path, file_stem: &str, templates: &
                         };
                         let text = create_test_input(&buf);
 
-                        let template = match &code_block_info.template_name {
-                            &None => "{}\n".into(),
-                            &Some(ref template_name) =>
-                                templates.get(template_name).expect(&format!(
-                                    "template {} not found for {}",
-                                    template_name,
-                                    path.display()
-                                )).clone()
-                        };
-
                         tests.push(Test {
                             name: name,
-                            text: TextToFormat {
-                                template: template,
-                                arg: text,
-                            },
+                            text: vec![
+                                TextToFormat {
+                                    template: template,
+                                    arg: text,
+                                },
+                            ],
                             ignore: code_block_info.ignore,
                             no_run: code_block_info.no_run,
                             should_panic: code_block_info.should_panic,
@@ -293,9 +321,13 @@ fn extract_tests_from_string(s: &str, path: &Path, file_stem: &str, templates: &
     if let Some(old_template) = old_template {
         for t in tests.iter_mut() {
             if t.template_name.is_none() {
-                t.text.template = old_template.clone();
+                assert_eq!(t.text.len(), 1);
+                t.text[0].template = old_template.clone();
             }
         }
+    }
+    for (_k, v) in combined_tests {
+        tests.push(v);
     }
     tests
 }
@@ -323,6 +355,8 @@ fn load_templates(path: &Path) -> Result<HashMap<String, String>, IoError> {
         match event {
             Event::Start(Tag::CodeBlock(ref info)) => {
                 let code_block_info = parse_code_block_info(info);
+                assert!(code_block_info.part_of.is_empty(),
+                        "'sk-part-of-...' is not allowed in templates");
                 if code_block_info.is_rust {
                     code_buffer = Some(Vec::new());
                 }
@@ -362,6 +396,8 @@ fn sanitize_test_name(s: &str) -> String {
         .join("_")
 }
 
+const PART_OF_PREFIX: &str = "sk-part-of-";
+
 fn parse_code_block_info(info: &str) -> CodeBlockInfo {
     // Same as rustdoc
     let tokens = info.split(|c: char| !(c == '_' || c == '-' || c.is_alphanumeric()));
@@ -375,6 +411,7 @@ fn parse_code_block_info(info: &str) -> CodeBlockInfo {
         no_run: false,
         is_old_template: false,
         template_name: None,
+        part_of: Vec::new(),
     };
 
     for token in tokens {
@@ -404,6 +441,10 @@ fn parse_code_block_info(info: &str) -> CodeBlockInfo {
                 info.template_name = Some(token[4..].to_string());
                 seen_rust_tags = true;
             }
+            _ if token.starts_with(PART_OF_PREFIX) => {
+                info.part_of.push(token[PART_OF_PREFIX.len()..].into());
+                seen_rust_tags = true;
+            }
             _ => seen_other_tags = true,
         }
     }
@@ -420,6 +461,7 @@ struct CodeBlockInfo {
     no_run: bool,
     is_old_template: bool,
     template_name: Option<String>,
+    part_of: Vec<String>,
 }
 
 fn emit_tests(config: &Config, suite: DocTestSuite) -> Result<(), IoError> {
@@ -472,13 +514,17 @@ fn create_test_runner(config: &Config, test: &Test) -> Result<String, IoError> {
     }
 
     writeln!(s, "#[test] fn {}() {{", test.name)?;
-    writeln!(s, "    let s = &{};", test.text.generate_code())?;
+
+    writeln!(s, "    let mut s = String::new();")?;
+    for part in &test.text {
+        writeln!(s, "    s += &{};", part.generate_code())?;
+    }
 
     // if we are not running, just compile the test without running it
     if test.no_run {
         writeln!(
             s,
-            "    skeptic::rt::compile_test(r#\"{}\"#, r#\"{}\"#, r#\"{}\"#, s);",
+            "    skeptic::rt::compile_test(r#\"{}\"#, r#\"{}\"#, r#\"{}\"#, &s);",
             config.root_dir.to_str().unwrap(),
             config.out_dir.to_str().unwrap(),
             config.target_triple
@@ -486,7 +532,7 @@ fn create_test_runner(config: &Config, test: &Test) -> Result<String, IoError> {
     } else {
         writeln!(
             s,
-            "    skeptic::rt::run_test(r#\"{}\"#, r#\"{}\"#, r#\"{}\"#, s);",
+            "    skeptic::rt::run_test(r#\"{}\"#, r#\"{}\"#, r#\"{}\"#, &s);",
             config.root_dir.to_str().unwrap(),
             config.out_dir.to_str().unwrap(),
             config.target_triple
@@ -888,6 +934,7 @@ mod tests {
     #[test]
     fn test_markdown_files_of_directory() {
         let files = vec![
+            "../../tests/combined-tests.md",
             "../../tests/hashtag-test.md",
             "../../tests/section-names.md",
             "../../tests/should-panic-test.md",
@@ -1027,20 +1074,80 @@ mod tests {
         assert_eq!(tests.len(), 1);
         assert_eq!(
             tests[0].text,
-            TextToFormat {
-                template: unindent(
-                    r###"
-                    fn main() {{
-                        {}
-                    }}
-                    "###,
-                ),
-                arg: unindent(
-                    r###"
-                    println!("Hello, world!");
-                    "###,
-                ),
-            },
+            vec![
+                TextToFormat {
+                    template: unindent(
+                        r###"
+                        fn main() {{
+                            {}
+                        }}
+                        "###,
+                    ),
+                    arg: unindent(
+                        r###"
+                        println!("Hello, world!");
+                        "###,
+                    ),
+                },
+            ],
+        );
+    }
+
+    #[test]
+    fn partial_code_blocks_are_combined() {
+        let lines = unindent(
+            r###"
+            Define a function:
+
+            ```rust,sk-part-of-zzz
+            fn greet() {
+                println("Hello, world!");
+            }
+            ```
+
+            And use it:
+
+            ```rust,sk-part-of-zzz
+            fn main() {
+                greet();
+            }
+            ```
+            "###,
+        );
+
+        let tests = extract_tests_from_string(
+            &create_test_input(&get_lines(lines)),
+            Path::new("blah.rs"),
+            &String::from("blah"),
+            &HashMap::new(),  // templates
+        );
+
+        assert_eq!(tests.len(), 1);
+        assert_eq!(tests[0].name, "blah_zzz");
+        assert_eq!(
+            tests[0].text,
+            vec![
+                TextToFormat {
+                    template: "{}\n".into(),
+                    arg: unindent(
+                        r###"
+                        fn greet() {
+                            println("Hello, world!");
+                        }
+                        "###,
+                    ),
+                },
+                TextToFormat {
+                    template: "{}\n".into(),
+                    arg: unindent(
+                        r###"
+                        fn main() {
+                            greet();
+                        }
+                        "###,
+                    ),
+                },
+            ],
         );
     }
 

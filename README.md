@@ -249,6 +249,37 @@ Like rustdoc, skeptic will remove preceding `# ` from any lines of
 code before compiling them. Hiding such lines during display requires
 custom support in the markdown renderer.
 
+## Combine multiple code blocks into a single test
+
+Code blocks annotated with `sk-part-of-` with the same suffix
+are concatenated into a single test:
+
+<code>```rust,sk-part-of-zzz</code>
+```rust,sk-part-of-zzz
+fn square(x: i32) -> i32 {
+    return x * x;
+}
+```
+<code>```</code>
+
+And then
+
+<code>```rust,sk-part-of-zzz</code>
+```rust,sk-part-of-zzz
+fn main() {
+    assert_eq!(square(2), 4);
+}
+```
+<code>```</code>
+
+If any of the parts is annotated with `no_run`,
+the whole test is treated as `no_run`.
+
+If any of the parts is annotated with `should_panic`,
+the whole test is treated as `should_panic`.
+
+One code block could be reused in multiple combined tests.
+
 ## License
 
 MIT/Apache-2.0
