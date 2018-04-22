@@ -1,17 +1,21 @@
+extern crate bytecount;
 #[macro_use]
 extern crate error_chain;
-extern crate pulldown_cmark as cmark;
-extern crate tempdir;
+extern crate failure;
 extern crate glob;
-extern crate bytecount;
+extern crate handlebars;
+extern crate pulldown_cmark as cmark;
+#[macro_use]
+extern crate serde_json;
+extern crate tempdir;
 
 use std::env;
 use std::fs::File;
-use std::io::{self, Read, Write, Error as IoError};
+use std::io::{self, Error as IoError, Read, Write};
 use std::mem;
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 use std::collections::HashMap;
-use cmark::{Parser, Event, Tag};
+use cmark::{Event, Parser, Tag};
 
 /// Returns a list of markdown files under a directory.
 ///
@@ -131,8 +135,8 @@ struct Config {
 }
 
 fn run(config: &Config) {
-    let tests = extract_tests(config).unwrap();
-    emit_tests(config, tests).unwrap();
+    let tests = extract_tests(config).unwrap_or_else(|err| panic!("{}", err));
+    emit_tests(config, tests).unwrap_or_else(|err| panic!("{}", err));
 }
 
 struct Test {
@@ -163,7 +167,9 @@ fn extract_tests(config: &Config) -> Result<DocTestSuite, IoError> {
         let new_tests = extract_tests_from_file(path)?;
         doc_tests.push(new_tests);
     }
-    Ok(DocTestSuite { doc_tests: doc_tests })
+    Ok(DocTestSuite {
+        doc_tests: doc_tests,
+    })
 }
 
 enum Buffer {
@@ -315,10 +321,12 @@ fn sanitize_test_name(s: &str) -> String {
     use std::ascii::AsciiExt;
     s.to_ascii_lowercase()
         .chars()
-        .map(|ch| if ch.is_ascii() && ch.is_alphanumeric() {
-            ch
-        } else {
-            '_'
+        .map(|ch| {
+            if ch.is_ascii() && ch.is_alphanumeric() {
+                ch
+            } else {
+                '_'
+            }
         })
         .collect::<String>()
         .split('_')
@@ -387,7 +395,7 @@ struct CodeBlockInfo {
     template: Option<String>,
 }
 
-fn emit_tests(config: &Config, suite: DocTestSuite) -> Result<(), IoError> {
+fn emit_tests(config: &Config, suite: DocTestSuite) -> Result<(), failure::Error> {
     let mut out = String::new();
 
     // Test cases use the api from skeptic::rt
@@ -410,7 +418,7 @@ fn emit_tests(config: &Config, suite: DocTestSuite) -> Result<(), IoError> {
             out.push_str(&test_string);
         }
     }
-    write_if_contents_changed(&config.out_file, &out)
+    Ok(write_if_contents_changed(&config.out_file, &out)?)
 }
 
 /// Just like Rustdoc, ignore a "#" sign at the beginning of a line of code.
@@ -442,13 +450,21 @@ fn create_test_runner(
     config: &Config,
     template: &Option<String>,
     test: &Test,
-) -> Result<String, IoError> {
+) -> Result<String, failure::Error> {
+    use handlebars::Handlebars;
 
-    let template = template.clone().unwrap_or_else(|| String::from("{}"));
+    if test.ignore {
+        return Ok("".to_string());
+    }
+
+    let template = template.clone().unwrap_or_else(|| String::from("{{test}}"));
     let test_text = create_test_input(&test.text);
 
+    let mut reg = Handlebars::new();
+    reg.register_escape_fn(|s| s.into());
+
     let mut s: Vec<u8> = Vec::new();
-    if test.ignore {
+    if test.no_run {
         writeln!(s, "#[ignore]")?;
     }
     if test.should_panic {
@@ -458,30 +474,9 @@ fn create_test_runner(
     writeln!(s, "#[test] fn {}() {{", test.name)?;
     writeln!(
         s,
-        "    let s = &format!(r####\"{}{}\"####, r####\"{}\"####);",
-        "\n",
-        template,
-        test_text
+        "{}",
+        reg.render_template(&template, &json!({ "test": test_text }))?
     )?;
-
-    // if we are not running, just compile the test without running it
-    if test.no_run {
-        writeln!(
-            s,
-            "    skeptic::rt::compile_test(r#\"{}\"#, r#\"{}\"#, r#\"{}\"#, s);",
-            config.root_dir.to_str().unwrap(),
-            config.out_dir.to_str().unwrap(),
-            config.target_triple
-        )?;
-    } else {
-        writeln!(
-            s,
-            "    skeptic::rt::run_test(r#\"{}\"#, r#\"{}\"#, r#\"{}\"#, s);",
-            config.root_dir.to_str().unwrap(),
-            config.out_dir.to_str().unwrap(),
-            config.target_triple
-        )?;
-    }
 
     writeln!(s, "}}")?;
     writeln!(s, "")?;
@@ -509,8 +504,8 @@ fn write_if_contents_changed(name: &Path, contents: &str) -> Result<(), IoError>
 }
 
 pub mod rt {
-    extern crate serde_json;
     extern crate cargo_metadata;
+    extern crate serde_json;
     extern crate walkdir;
 
     use std::collections::HashMap;
@@ -554,14 +549,18 @@ pub mod rt {
             let pth = pth.as_ref().join("Cargo.toml");
             let metadata = cargo_metadata::metadata_deps(Some(&pth), true)?;
             let workspace_members = metadata.workspace_members;
-            let deps = metadata.resolve.ok_or("Missing dependency metadata")?
+            let deps = metadata
+                .resolve
+                .ok_or("Missing dependency metadata")?
                 .nodes
                 .into_iter()
                 .filter(|node| workspace_members.contains(&node.id))
                 .flat_map(|node| node.dependencies.into_iter())
                 .chain(workspace_members.clone());
 
-            Ok(LockedDeps { dependencies: deps.collect() })
+            Ok(LockedDeps {
+                dependencies: deps.collect(),
+            })
         }
     }
 
@@ -604,9 +603,9 @@ pub mod rt {
         fn from_path<P: AsRef<Path>>(pth: P) -> Result<Fingerprint> {
             let pth = pth.as_ref();
 
-            let fname = pth.file_stem().and_then(OsStr::to_str).ok_or(
-                ErrorKind::Fingerprint,
-            )?;
+            let fname = pth.file_stem()
+                .and_then(OsStr::to_str)
+                .ok_or(ErrorKind::Fingerprint)?;
 
             pth.extension()
                 .and_then(|e| if e == "json" { Some(e) } else { None })
@@ -658,16 +657,14 @@ pub mod rt {
     ) -> Result<Vec<Fingerprint>> {
         let root_dir = root_dir.as_ref();
         let target_dir = target_dir.as_ref();
-        let lock = LockedDeps::from_path(root_dir).or_else(
-            |_| {
-                // could not find Cargo.lock in $CARGO_MAINFEST_DIR
-                // try relative to target_dir
-                let mut root_dir = PathBuf::from(target_dir);
-                root_dir.pop();
-                root_dir.pop();
-                LockedDeps::from_path(root_dir)
-            },
-        )?;
+        let lock = LockedDeps::from_path(root_dir).or_else(|_| {
+            // could not find Cargo.lock in $CARGO_MAINFEST_DIR
+            // try relative to target_dir
+            let mut root_dir = PathBuf::from(target_dir);
+            root_dir.pop();
+            root_dir.pop();
+            LockedDeps::from_path(root_dir)
+        })?;
 
         let fingerprint_dir = target_dir.join(".fingerprint/");
         let locked_deps: HashMap<String, String> = lock.collect();
@@ -699,12 +696,10 @@ pub mod rt {
             }
         }
 
-        Ok(
-            found_deps
-                .into_iter()
-                .filter_map(|(_, val)| if val.rlib.exists() { Some(val) } else { None })
-                .collect(),
-        )
+        Ok(found_deps
+            .into_iter()
+            .filter_map(|(_, val)| if val.rlib.exists() { Some(val) } else { None })
+            .collect())
     }
 
     pub fn compile_test(root_dir: &str, out_dir: &str, target_triple: &str, test_text: &str) {
@@ -758,7 +753,6 @@ pub mod rt {
         target_triple: &str,
         compile_type: CompileType,
     ) {
-
         // OK, here's where a bunch of magic happens using assumptions
         // about cargo internals. We are going to use rustc to compile
         // the examples, but to do that we've got to tell it where to
@@ -786,9 +780,7 @@ pub mod rt {
             .arg("--target")
             .arg(&target_triple);
 
-        for dep in get_rlib_dependencies(root_dir, target_dir).expect(
-            "failed to read dependencies",
-        )
+        for dep in get_rlib_dependencies(root_dir, target_dir).expect("failed to read dependencies")
         {
             cmd.arg("--extern");
             cmd.arg(format!(
@@ -800,12 +792,10 @@ pub mod rt {
 
         match compile_type {
             CompileType::Full => cmd.arg("-o").arg(out_path),
-            CompileType::Check => {
-                cmd.arg(format!(
-                    "--emit=dep-info={0}.d,metadata={0}.m",
-                    out_path.display()
-                ))
-            }
+            CompileType::Check => cmd.arg(format!(
+                "--emit=dep-info={0}.d,metadata={0}.m",
+                out_path.display()
+            )),
         };
 
         interpret_output(cmd);
@@ -889,9 +879,7 @@ mod tests {
         assert_eq!(sanitize_test_name("__my_fun_"), "my_fun");
         assert_eq!(sanitize_test_name("^$@__my@#_fun#$@"), "my_fun");
         assert_eq!(
-            sanitize_test_name(
-                "my_long__fun___name___with____a_____lot______of_______spaces",
-            ),
+            sanitize_test_name("my_long__fun___name___with____a_____lot______of_______spaces",),
             "my_long_fun_name_with_a_lot_of_spaces"
         );
         assert_eq!(sanitize_test_name("Löwe 老虎 Léopard"), "l_we_l_opard");
@@ -922,7 +910,6 @@ mod tests {
             ```"###,
         );
 
-
         let tests =
             extract_tests_from_string(&create_test_input(&get_lines(lines)), &String::from("blah"));
 
@@ -934,7 +921,6 @@ mod tests {
 
         assert_eq!(test_names, vec!["3", "11"]);
     }
-
 
     #[test]
     fn line_numbers_displayed_are_for_the_beginning_of_each_section() {
@@ -1025,11 +1011,13 @@ mod tests {
         assert_eq!(tests.1, None);
     }
 
-
     fn get_line_number_from_test_name(test: Test) -> String {
-        String::from(test.name.split('_').last().expect(
-            "There were no underscores!",
-        ))
+        String::from(
+            test.name
+                .split('_')
+                .last()
+                .expect("There were no underscores!"),
+        )
     }
 
     fn get_lines(lines: String) -> Vec<String> {

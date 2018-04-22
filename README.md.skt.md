@@ -1,7 +1,11 @@
 ```rust,skt-foo
 use std::path::PathBuf;
 
-fn main() {{
-    {}
-}}
+{{test}}
+```
+
+```rust,skt-main
+
+{{test}}
+main()
 ```

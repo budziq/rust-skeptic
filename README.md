@@ -31,7 +31,7 @@ of Markdown files.
 
 In `build.rs` write this to test all Rust code blocks in `README.md`:
 
-```rust,no_run
+```rust,no_run,skt-main
 extern crate skeptic;
 
 fn main() {
@@ -46,7 +46,7 @@ you, the method `markdown_files_of_directory` will create such a list,
 enumerating the markdown files in the specified directory. You can add
 more files to this list as you like:
 
-```rust,no_run
+```rust,no_run,skt-main
 extern crate skeptic;
 
 use skeptic::*;
@@ -103,9 +103,7 @@ To indicate Rust code, code blocks are labeled `rust`:
 
 <code>```rust</code>
 ```rust
-fn main() {
-   println!("Calm your skepticism. This example is verified.");
-}
+println!("Calm your skepticism. This example is verified.");
 ```
 <code>```</code>
 
@@ -143,9 +141,7 @@ fn do_amazing_thing() -> i32 {
    unimplemented!()
 }
 
-fn main() {
-   do_amazing_thing();
-}
+do_amazing_thing();
 ```
 <code>```</code>
 
@@ -156,9 +152,7 @@ of a `panic!()`.
 
 <code>```rust,should_panic</code>
 ```rust,should_panic
-fn main() {
-   assert!(1 == 100);
-}
+assert!(1 == 100);
 ```
 <code>```</code>
 
@@ -206,16 +200,16 @@ println!("{:?}", p);
 
 This tells skeptic to look in the template file for another
 markdown block with the same `skt-foo` annotation, and compose
-them together using the standard Rust `format!` macro. Here's
-what the template looks like:
+them together using a [Handlebars][] templates with escaping disabled.
+Here's what the template looks like (the test code is available as `test`):
+
+[Handlebars]:https://github.com./sunng87/handbars-rust
 
 <code>```rust,skt-foo</code>
 ```rust,ignore
 use std::path::PathBuf;
 
-fn main() {{
-    {}
-}}
+{{test}}
 ```
 <code>```</code>
 
@@ -237,9 +231,7 @@ explicitly tagged.
 ```rust,ignore
 use std::path::PathBuf;
 
-fn main() {{
-    {}
-}}
+{{test}}
 ```
 <code>```</code>
 

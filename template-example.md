@@ -15,9 +15,7 @@ turn off unused imports, and wrap the example in main:
 #![allow(unused_imports)]
 extern crate skeptic;
 
-fn main() {{
-   {}
-}}
+{{test}}
 
 ```
 <code>```</code>
