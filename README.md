@@ -213,13 +213,16 @@ use std::path::PathBuf;
 ```
 <code>```</code>
 
-Templates are [Rust format
-specifiers](http://doc.rust-lang.org/std/fmt/index.html) that must
-take a single argument (i.e. they need to contain the string
-"{}"). See [the (old) template example](template-example.md) for more
-on templates.
+If it is necessary to have module global definitions such as for `#[macro_use]`
+crates the `skeptic-root-template` specifier can be used.
 
-Note that in a template, real braces need to be doubled.
+<code>```rust,skeptic-root-template</code>
+```rust,ignore
+#[macro_use]
+extern crate serde_json;
+```
+<code>```</code>
+
 
 ## The old-style, document-global template
 

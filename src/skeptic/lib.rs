@@ -155,6 +155,7 @@ struct DocTestSuite {
 struct DocTest {
     path: PathBuf,
     old_template: Option<String>,
+    root_template: Option<String>,
     tests: Vec<Test>,
     templates: HashMap<String, String>,
 }
@@ -185,19 +186,23 @@ fn extract_tests_from_file(path: &Path) -> Result<DocTest, IoError> {
 
     let file_stem = &sanitize_test_name(path.file_stem().unwrap().to_str().unwrap());
 
-    let tests = extract_tests_from_string(s, file_stem);
+    let (tests, old_template, old_root_template) = extract_tests_from_string(s, file_stem);
 
-    let templates = load_templates(path)?;
+    let (templates, root_template) = load_templates(path)?;
 
     Ok(DocTest {
         path: path.to_owned(),
-        old_template: tests.1,
-        tests: tests.0,
-        templates: templates,
+        root_template: root_template.or(old_root_template),
+        old_template,
+        tests,
+        templates,
     })
 }
 
-fn extract_tests_from_string(s: &str, file_stem: &str) -> (Vec<Test>, Option<String>) {
+fn extract_tests_from_string(
+    s: &str,
+    file_stem: &str,
+) -> (Vec<Test>, Option<String>, Option<String>) {
     let mut tests = Vec::new();
     let mut buffer = Buffer::None;
     let mut parser = Parser::new(s);
@@ -205,6 +210,7 @@ fn extract_tests_from_string(s: &str, file_stem: &str) -> (Vec<Test>, Option<Str
     let mut code_block_start = 0;
     // Oh this isn't actually a test but a legacy template
     let mut old_template = None;
+    let mut root_template = None;
 
     // In order to call get_offset() on the parser,
     // this loop must not hold an exclusive reference to the parser.
@@ -245,7 +251,9 @@ fn extract_tests_from_string(s: &str, file_stem: &str) -> (Vec<Test>, Option<Str
             Event::End(Tag::CodeBlock(ref info)) => {
                 let code_block_info = parse_code_block_info(info);
                 if let Buffer::Code(buf) = mem::replace(&mut buffer, Buffer::None) {
-                    if code_block_info.is_old_template {
+                    if code_block_info.root_template {
+                        root_template = Some(buf.into_iter().collect())
+                    } else if code_block_info.is_old_template {
                         old_template = Some(buf.into_iter().collect())
                     } else {
                         let name = if let Some(ref section) = section {
@@ -267,17 +275,17 @@ fn extract_tests_from_string(s: &str, file_stem: &str) -> (Vec<Test>, Option<Str
             _ => (),
         }
     }
-    (tests, old_template)
+    (tests, old_template, root_template)
 }
 
-fn load_templates(path: &Path) -> Result<HashMap<String, String>, IoError> {
+fn load_templates(path: &Path) -> Result<(HashMap<String, String>, Option<String>), IoError> {
     let file_name = format!(
         "{}.skt.md",
         path.file_name().expect("no file name").to_string_lossy()
     );
     let path = path.with_file_name(&file_name);
     if !path.exists() {
-        return Ok(HashMap::new());
+        return Ok((HashMap::new(), None));
     }
 
     let mut map = HashMap::new();
@@ -288,6 +296,7 @@ fn load_templates(path: &Path) -> Result<HashMap<String, String>, IoError> {
     let parser = Parser::new(s);
 
     let mut code_buffer = None;
+    let mut root_template = None;
 
     for event in parser {
         match event {
@@ -305,7 +314,9 @@ fn load_templates(path: &Path) -> Result<HashMap<String, String>, IoError> {
             Event::End(Tag::CodeBlock(ref info)) => {
                 let code_block_info = parse_code_block_info(info);
                 if let Some(buf) = code_buffer.take() {
-                    if let Some(t) = code_block_info.template {
+                    if code_block_info.root_template {
+                        root_template = Some(buf.into_iter().collect());
+                    } else if let Some(t) = code_block_info.template {
                         map.insert(t, buf.into_iter().collect());
                     }
                 }
@@ -314,7 +325,7 @@ fn load_templates(path: &Path) -> Result<HashMap<String, String>, IoError> {
         }
     }
 
-    Ok(map)
+    Ok((map, root_template))
 }
 
 fn sanitize_test_name(s: &str) -> String {
@@ -348,6 +359,7 @@ fn parse_code_block_info(info: &str) -> CodeBlockInfo {
         no_run: false,
         is_old_template: false,
         template: None,
+        root_template: false,
     };
 
     for token in tokens {
@@ -373,6 +385,9 @@ fn parse_code_block_info(info: &str) -> CodeBlockInfo {
                 info.is_old_template = true;
                 seen_rust_tags = true
             }
+            "skeptic-root-template" => {
+                info.root_template = true;
+            }
             _ if token.starts_with("skt-") => {
                 info.template = Some(token[4..].to_string());
                 seen_rust_tags = true;
@@ -393,6 +408,7 @@ struct CodeBlockInfo {
     no_run: bool,
     is_old_template: bool,
     template: Option<String>,
+    root_template: bool,
 }
 
 fn emit_tests(config: &Config, suite: DocTestSuite) -> Result<(), failure::Error> {
@@ -402,6 +418,10 @@ fn emit_tests(config: &Config, suite: DocTestSuite) -> Result<(), failure::Error
     out.push_str("extern crate skeptic;\n");
 
     for doc_test in suite.doc_tests {
+        if let Some(ref root_template) = doc_test.root_template {
+            out.push_str(root_template);
+        }
+
         for test in &doc_test.tests {
             let test_string = {
                 if let Some(ref t) = test.template {
