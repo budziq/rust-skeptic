@@ -414,9 +414,6 @@ struct CodeBlockInfo {
 fn emit_tests(config: &Config, suite: DocTestSuite) -> Result<(), failure::Error> {
     let mut out = String::new();
 
-    // Test cases use the api from skeptic::rt
-    out.push_str("extern crate skeptic;\n");
-
     for doc_test in suite.doc_tests {
         if let Some(ref root_template) = doc_test.root_template {
             out.push_str(root_template);
