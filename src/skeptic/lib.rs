@@ -553,7 +553,10 @@ pub mod rt {
         fn from_path<P: AsRef<Path>>(pth: P) -> Result<LockedDeps> {
             let pth = pth.as_ref().join("Cargo.toml");
             let metadata = cargo_metadata::metadata_deps(Some(&pth), true)?;
-            let workspace_members = metadata.workspace_members;
+            let workspace_members:Vec<String> = metadata.workspace_members
+                .into_iter()
+                .map(|workspace| workspace.name.clone())
+                .collect();
             let deps = metadata.resolve.ok_or("Missing dependency metadata")?
                 .nodes
                 .into_iter()
