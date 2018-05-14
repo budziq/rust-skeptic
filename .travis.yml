@@ -6,6 +6,12 @@ language: rust
 
 matrix:
   include:
+    # integration tests with rust-cookbook
+    - os: linux
+      rust: stable
+      env: INTEGRATION_TESTS=1
+
+    # skeptic unit tests
     - os: linux
       rust: stable
     - os: linux
