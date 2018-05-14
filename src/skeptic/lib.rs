@@ -312,7 +312,6 @@ fn load_templates(path: &Path) -> Result<HashMap<String, String>, IoError> {
 }
 
 fn sanitize_test_name(s: &str) -> String {
-    use std::ascii::AsciiExt;
     s.to_ascii_lowercase()
         .chars()
         .map(|ch| if ch.is_ascii() && ch.is_alphanumeric() {
