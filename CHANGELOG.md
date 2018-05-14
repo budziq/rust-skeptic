@@ -1,3 +1,12 @@
+# 0.13.3
+
+* [Added integration tests with rust-cookbook to Travis CI](https://github.com/budziq/rust-skeptic/commit/178276c9a5d2149bc0012afe1e3c807df2a2885e)
+* [Make skeptic usable with Rust 1.16](https://github.com/budziq/rust-skeptic/commit/cecd4574a7264a7636f7201f8b930ea41f3ccfdb)
+* [Fix problem with linking duplicate *.so deps](https://github.com/budziq/rust-skeptic/commit/23b738c5ca16697b5497a9fdadfaacffa71a8504)
+* [Don't check for changes in skt.md files that don't exist](https://github.com/budziq/rust-skeptic/commit/8b3ba1aece727ad7596a65812fbe23b200297c60)
+
+Contributors: Michał Budzyński, Matt Brubeck, Ryman, llogiq, Andreas Jonson
+
 # 0.13.2
 
 * [Fixed testfails on cargo beta due to missing root in Cargo.lock](https://github.com/budziq/rust-skeptic/pull/66)
