@@ -554,7 +554,7 @@ pub mod rt {
             let metadata = cargo_metadata::metadata_deps(Some(&pth), true)?;
             let workspace_members:Vec<String> = metadata.workspace_members
                 .into_iter()
-                .map(|workspace| workspace.name.clone())
+                .map(|workspace| {format!("{} {} ({})", workspace.name, workspace.version, workspace.url)})
                 .collect();
             let deps = metadata.resolve.ok_or("Missing dependency metadata")?
                 .nodes
