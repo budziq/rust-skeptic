@@ -3,22 +3,23 @@
 
 environment:
   global:
-    RUST_VERSION: stable
-    APPVEYOR_CACHE_SKIP_RESTORE: true
-    CRATE_NAME: skeptic
+    CRATE_NAME: rust-cookbook
 
   matrix:
-    # MSVC
-    - TARGET: i686-pc-windows-msvc
+    # - TARGET: x86_64-pc-windows-gnu
+    #  RUST_VERSION: stable
     - TARGET: x86_64-pc-windows-msvc
-
-    # Testing other channels
-    - TARGET: x86_64-pc-windows-msvc
-      RUST_VERSION: beta
+      RUST_VERSION: stable
     - TARGET: x86_64-pc-windows-msvc
       RUST_VERSION: nightly
 
 install:
+  - ps: >-
+      If ($Env:TARGET -eq 'x86_64-pc-windows-gnu') {
+        $Env:PATH += ';C:\msys64\mingw64\bin'
+      } ElseIf ($Env:TARGET -eq 'i686-pc-windows-gnu') {
+        $Env:PATH += ';C:\msys64\mingw32\bin'
+      }
   - curl -sSf -o rustup-init.exe https://win.rustup.rs/
   - rustup-init.exe -y --default-host %TARGET% --default-toolchain %RUST_VERSION%
   - set PATH=%PATH%;C:\Users\appveyor\.cargo\bin
@@ -26,23 +27,18 @@ install:
   - cargo -V
 
 test_script:
-  # remove clean once fixed https://github.com/budziq/rust-skeptic/issues/57
   - cargo clean
-  - cargo build --target %TARGET%
-  - cargo build --target %TARGET% --release
-  - cargo test --target %TARGET%
-  - cargo test --target %TARGET% --release
+  - cargo build
+  - cargo test
   - cd src\skeptic
-  - cargo build --target %TARGET%
-  - cargo build --target %TARGET% --release
-  - cargo test --target %TARGET%
-  - cargo test --target %TARGET% --release
-
-cache:
-  - C:\Users\appveyor\.cargo\registry
-
+  - cargo clean
+  - cargo build
+  - cargo test
+  
 branches:
   only:
+    # Release tags
+    - /^v\d+\.\d+\.\d+.*$/
     - master
 
 notifications:
