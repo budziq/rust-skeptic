@@ -782,9 +782,9 @@ pub mod rt {
             .arg("--verbose")
             .arg("--crate-type=bin")
             .arg("-L")
-            .arg(&target_dir)
+            .arg(format!("dependency={}", target_dir.to_string_lossy()))
             .arg("-L")
-            .arg(&deps_dir)
+            .arg(format!("dependency={}", deps_dir.to_string_lossy()))
             .arg("--target")
             .arg(&target_triple);
 
