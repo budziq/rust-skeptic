@@ -782,9 +782,9 @@ pub mod rt {
             .arg("--verbose")
             .arg("--crate-type=bin")
             .arg("-L")
-            .arg(format!("dependency={}", target_dir.to_string_lossy()))
+            .arg(format!("dependency={}", target_dir.to_string_lossy()).replace("\\\\", "\\"))
             .arg("-L")
-            .arg(format!("dependency={}", deps_dir.to_string_lossy()))
+            .arg(format!("dependency={}", deps_dir.to_string_lossy()).replace("\\\\", "\\"))
             .arg("--target")
             .arg(&target_triple);
 
@@ -797,7 +797,7 @@ pub mod rt {
                 "{}={}",
                 dep.libname,
                 dep.rlib.to_str().expect("filename not utf8"),
-            ));
+            ).replace("\\\\", "\\"));
         }
 
         match compile_type {
