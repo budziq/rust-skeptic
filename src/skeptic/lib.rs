@@ -205,16 +205,20 @@ fn extract_tests_from_file(path: &Path) -> Result<DocTest, IoError> {
     })
 }
 
-fn extract_tests_from_string(s: &str, path: &Path, file_stem: &str, templates: &HashMap<String, String>) -> Vec<Test> {
-    let mut tests = Vec::new();
+struct CodeBlock {
+    info: CodeBlockInfo,
+    content: Vec<String>,
+    start_line_number: usize,
+    section: Option<String>,
+}
+
+fn extract_code_blocks_from_string(s: &str) -> Vec<CodeBlock> {
     let mut buffer = Buffer::None;
     let mut parser = Parser::new(s);
     let mut section = None;
     let mut code_block_start = 0;
-    // Oh this isn't actually a test but a legacy template
-    let mut old_template: Option<String> = None;
 
-    let mut combined_tests: HashMap<String, Test> = HashMap::new();
+    let mut code_blocks = Vec::new();
 
     // In order to call get_offset() on the parser,
     // this loop must not hold an exclusive reference to the parser.
@@ -253,73 +257,91 @@ fn extract_tests_from_string(s: &str, path: &Path, file_stem: &str, templates: &
                 }
             }
             Event::End(Tag::CodeBlock(ref info)) => {
-                let code_block_info = parse_code_block_info(info);
-                if let Buffer::Code(buf) = mem::replace(&mut buffer, Buffer::None) {
-                    let template = match &code_block_info.template_name {
-                        &None => "{}\n".into(),
-                        &Some(ref template_name) =>
-                            templates.get(template_name).expect(&format!(
-                                "template {} not found for {}",
-                                template_name,
-                                path.display()
-                            )).clone()
-                    };
-
-                    if !code_block_info.part_of.is_empty() {
-                        assert!(!code_block_info.is_old_template,
-                                "'sk-part-of-...' is not allowed in legacy templates");
-                        assert!(!code_block_info.ignore,
-                                "'sk-part-of-...' can't be combined with 'ignore'");
-                        let text = create_test_input(&buf);
-                        for part_name in &code_block_info.part_of {
-                            let t = combined_tests.entry(part_name.clone()).or_insert(
-                                Test {
-                                    name: format!("{}_{}", file_stem, sanitize_test_name(part_name)),
-                                    text: Vec::new(),
-                                    ignore: false,
-                                    no_run: false,
-                                    should_panic: false,
-                                    template_name: None,
-                                }
-                            );
-                            t.text.push(TextToFormat {
-                                template: template.clone(),
-                                arg: text.clone(),
-                            });
-                            t.no_run = t.no_run || code_block_info.no_run;
-                            t.should_panic = t.should_panic || code_block_info.should_panic;
-                        }
-                    } else if code_block_info.is_old_template {
-                        old_template = Some(buf.into_iter().collect())
-                    } else {
-                        let name = if let Some(ref section) = section {
-                            format!("{}_sect_{}_line_{}", file_stem, section, code_block_start)
-                        } else {
-                            format!("{}_line_{}", file_stem, code_block_start)
-                        };
-                        let text = create_test_input(&buf);
-
-                        tests.push(Test {
-                            name: name,
-                            text: vec![
-                                TextToFormat {
-                                    template: template,
-                                    arg: text,
-                                },
-                            ],
-                            ignore: code_block_info.ignore,
-                            no_run: code_block_info.no_run,
-                            should_panic: code_block_info.should_panic,
-                            template_name: code_block_info.template_name.clone(),
-                        });
-                    }
+                if let Buffer::Code(content) = mem::replace(&mut buffer, Buffer::None) {
+                    code_blocks.push(CodeBlock {
+                        info: parse_code_block_info(info),
+                        content,
+                        start_line_number: code_block_start,
+                        section: section.clone(),
+                    });
                 }
             }
             _ => (),
         }
     }
+
+    code_blocks
+}
+
+fn extract_tests_from_string(s: &str, path: &Path, file_stem: &str, templates: &HashMap<String, String>) -> Vec<Test> {
+    let mut tests = Vec::new();
+    // Oh this isn't actually a test but a legacy template
+    let mut old_template: Option<String> = None;
+    let mut combined_tests: HashMap<String, Test> = HashMap::new();
+
+    for code_block in extract_code_blocks_from_string(s) {
+        let template = match code_block.info.template_name {
+            None => "{}\n".into(),
+            Some(ref template_name) =>
+                templates.get(template_name).expect(&format!(
+                    "template {} not found for {}",
+                    template_name,
+                    path.display()
+                )).clone()
+        };
+
+        if !code_block.info.part_of.is_empty() {
+            assert!(!code_block.info.is_old_template,
+                    "'sk-part-of-...' is not allowed in legacy templates");
+            assert!(!code_block.info.ignore,
+                    "'sk-part-of-...' can't be combined with 'ignore'");
+            let text = create_test_input(&code_block.content);
+            for part_name in &code_block.info.part_of {
+                let t = combined_tests.entry(part_name.clone()).or_insert(
+                    Test {
+                        name: format!("{}_{}", file_stem, sanitize_test_name(part_name)),
+                        text: Vec::new(),
+                        ignore: false,
+                        no_run: false,
+                        should_panic: false,
+                        template_name: None,
+                    }
+                );
+                t.text.push(TextToFormat {
+                    template: template.clone(),
+                    arg: text.clone(),
+                });
+                t.no_run = t.no_run || code_block.info.no_run;
+                t.should_panic = t.should_panic || code_block.info.should_panic;
+            }
+        } else if code_block.info.is_old_template {
+            old_template = Some(code_block.content.into_iter().collect())
+        } else {
+            let name = if let Some(ref section) = code_block.section {
+                format!("{}_sect_{}_line_{}", file_stem, section, code_block.start_line_number)
+            } else {
+                format!("{}_line_{}", file_stem, code_block.start_line_number)
+            };
+            let text = create_test_input(&code_block.content);
+
+            tests.push(Test {
+                name: name,
+                text: vec![
+                    TextToFormat {
+                        template: template,
+                        arg: text,
+                    },
+                ],
+                ignore: code_block.info.ignore,
+                no_run: code_block.info.no_run,
+                should_panic: code_block.info.should_panic,
+                template_name: code_block.info.template_name.clone(),
+            });
+        }
+
+    }
     if let Some(old_template) = old_template {
-        for t in tests.iter_mut() {
+        for t in &mut tests {
             if t.template_name.is_none() {
                 assert_eq!(t.text.len(), 1);
                 t.text[0].template = old_template.clone();
