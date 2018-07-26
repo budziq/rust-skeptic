@@ -92,22 +92,22 @@ no Rust syntax highlighting and testing.
 
 So the below is not tested by Skeptic.
 
-<code>```</code>
+````
 ```
 let this_is_not_going_to_be_compiled_and_run = @all;
 It doesn't really matter what's in here.
 ```
-<code>```</code>
+````
 
 To indicate Rust code, code blocks are labeled `rust`:
 
-<code>```rust</code>
+````rust,ignore
 ```rust
 fn main() {
    println!("Calm your skepticism. This example is verified.");
 }
 ```
-<code>```</code>
+````
 
 Skeptic will interpret other words in the code block's 'info string'
 (which should be separated by comma, `,`, to be
@@ -121,13 +121,13 @@ be compiled or run during testing.  This can be useful if an example is written
 in Rust (and you want it highlighted as such) but it is known to be incomplete
 (so it cannot compile as-is).
 
-<code>```rust,ignore</code>
+````rust,ignore
 ```rust,ignore
 fn do_amazing_thing() -> i32 {
    // TODO: How do I do this?
    unimplemented! whatever I'm distracted, oh cookies!
 ```
-<code>```</code>
+````
 
 ### `no_run` Info String
 
@@ -136,7 +136,7 @@ Code marked with `no_run` will however still be compiled.  This is useful for
 examples/test that may have side effects or dependencies which are not desirable
 in a testing situation.
 
-<code>```rust,no_run</code>
+````rust,ignore
 ```rust,no_run
 fn do_amazing_thing() -> i32 {
    // TODO: How do I do this?
@@ -147,20 +147,20 @@ fn main() {
    do_amazing_thing();
 }
 ```
-<code>```</code>
+````
 
 ### `should_panic` Info String
 
 `should_panic` causes the test to only pass if it terminates because
 of a `panic!()`.
 
-<code>```rust,should_panic</code>
+````rust,ignore
 ```rust,should_panic
 fn main() {
    assert!(1 == 100);
 }
 ```
-<code>```</code>
+````
 
 ## Skeptic Templates
 
@@ -197,27 +197,27 @@ This example won't compile without defining `main` and importing
 boilerplate. Instead it is annotated `skt-foo`, for _skeptic template
 foo_, like so:
 
-<code>```rust,skt-foo</code>
+````rust,ignore
 ```rust,skt-foo
 let p = PathBuf::from("foo");
 println!("{:?}", p);
 ```
-<code>```</code>
+````
 
 This tells skeptic to look in the template file for another
 markdown block with the same `skt-foo` annotation, and compose
 them together using the standard Rust `format!` macro. Here's
 what the template looks like:
 
-<code>```rust,skt-foo</code>
-```rust,ignore
+````rust,ignore
+```rust,skt-foo
 use std::path::PathBuf;
 
 fn main() {{
     {}
 }}
 ```
-<code>```</code>
+````
 
 Templates are [Rust format
 specifiers](http://doc.rust-lang.org/std/fmt/index.html) that must
@@ -233,15 +233,15 @@ Within a document, a `rust` code block tagged `skeptic-template` will
 be used as the template for all examples in the doc that are not
 explicitly tagged.
 
-<code>```rust,skeptic-template</code>
-```rust,ignore
+````rust,ignore
+```rust,skeptic-template
 use std::path::PathBuf;
 
 fn main() {{
     {}
 }}
 ```
-<code>```</code>
+````
 
 ## Rustdoc-style undisplayed lines with `# `
 
