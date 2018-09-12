@@ -1,4 +1,10 @@
-# 0.13.3
+# Unreleased (yyyy-mm-dd)
+
+* Added [Support for tests made from multiple code blocks (`sk-part-of-...`)](https://github.com/budziq/rust-skeptic/issues/76)
+
+Contributors: Vlad Shcherbina
+
+# 0.13.3 (2018-05-14)
 
 * [Added integration tests with rust-cookbook to Travis CI](https://github.com/budziq/rust-skeptic/commit/178276c9a5d2149bc0012afe1e3c807df2a2885e)
 * [Make skeptic usable with Rust 1.16](https://github.com/budziq/rust-skeptic/commit/cecd4574a7264a7636f7201f8b930ea41f3ccfdb)
@@ -7,7 +13,7 @@
 
 Contributors: Michał Budzyński, Matt Brubeck, Ryman, llogiq, Andreas Jonson
 
-# 0.13.2
+# 0.13.2 (2017-10-19)
 
 * [Fixed testfails on cargo beta due to missing root in Cargo.lock](https://github.com/budziq/rust-skeptic/pull/66)
 * [Fixed linking problems when workspace members were rebuild without clean](https://github.com/budziq/rust-skeptic/pull/66)

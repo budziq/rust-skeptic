@@ -135,13 +135,33 @@ fn run(config: &Config) {
     emit_tests(config, tests).unwrap();
 }
 
+// Logically, it represents result of `format!(template, arg)`.
+// But `format!()` requires the format string to be known at
+// compile time, so we can't use it when collecting tests.
+// Instead, we emit tests that include `format!()` invocation.
+// If Skeptic used a template engine that supports runtime templates,
+// this struct could be replaced with eagerly evaluated `String`.
+#[derive(PartialEq, Eq, Debug)]
+struct TextToFormat {
+    template: String,
+    arg: String,
+}
+
+impl TextToFormat {
+    fn generate_code(&self) -> String {
+        format!("format!(r####\"{}\"####, r####\"{}\"####)",
+                self.template,
+                self.arg)
+    }
+}
+
 struct Test {
     name: String,
-    text: Vec<String>,
+    text: Vec<TextToFormat>,
     ignore: bool,
     no_run: bool,
     should_panic: bool,
-    template: Option<String>,
+    template_name: Option<String>,
 }
 
 struct DocTestSuite {
@@ -149,10 +169,7 @@ struct DocTestSuite {
 }
 
 struct DocTest {
-    path: PathBuf,
-    old_template: Option<String>,
     tests: Vec<Test>,
-    templates: HashMap<String, String>,
 }
 
 fn extract_tests(config: &Config) -> Result<DocTestSuite, IoError> {
@@ -179,26 +196,29 @@ fn extract_tests_from_file(path: &Path) -> Result<DocTest, IoError> {
 
     let file_stem = &sanitize_test_name(path.file_stem().unwrap().to_str().unwrap());
 
-    let tests = extract_tests_from_string(s, file_stem);
-
     let templates = load_templates(path)?;
 
+    let tests = extract_tests_from_string(s, path, file_stem, &templates);
+
     Ok(DocTest {
-        path: path.to_owned(),
-        old_template: tests.1,
-        tests: tests.0,
-        templates: templates,
+        tests,
     })
 }
 
-fn extract_tests_from_string(s: &str, file_stem: &str) -> (Vec<Test>, Option<String>) {
-    let mut tests = Vec::new();
+struct CodeBlock {
+    info: CodeBlockInfo,
+    content: Vec<String>,
+    start_line_number: usize,
+    section: Option<String>,
+}
+
+fn extract_code_blocks_from_string(s: &str) -> Vec<CodeBlock> {
     let mut buffer = Buffer::None;
     let mut parser = Parser::new(s);
     let mut section = None;
     let mut code_block_start = 0;
-    // Oh this isn't actually a test but a legacy template
-    let mut old_template = None;
+
+    let mut code_blocks = Vec::new();
 
     // In order to call get_offset() on the parser,
     // this loop must not hold an exclusive reference to the parser.
@@ -237,31 +257,101 @@ fn extract_tests_from_string(s: &str, file_stem: &str) -> (Vec<Test>, Option<Str
                 }
             }
             Event::End(Tag::CodeBlock(ref info)) => {
-                let code_block_info = parse_code_block_info(info);
-                if let Buffer::Code(buf) = mem::replace(&mut buffer, Buffer::None) {
-                    if code_block_info.is_old_template {
-                        old_template = Some(buf.into_iter().collect())
-                    } else {
-                        let name = if let Some(ref section) = section {
-                            format!("{}_sect_{}_line_{}", file_stem, section, code_block_start)
-                        } else {
-                            format!("{}_line_{}", file_stem, code_block_start)
-                        };
-                        tests.push(Test {
-                            name: name,
-                            text: buf,
-                            ignore: code_block_info.ignore,
-                            no_run: code_block_info.no_run,
-                            should_panic: code_block_info.should_panic,
-                            template: code_block_info.template,
-                        });
-                    }
+                if let Buffer::Code(content) = mem::replace(&mut buffer, Buffer::None) {
+                    code_blocks.push(CodeBlock {
+                        info: parse_code_block_info(info),
+                        content,
+                        start_line_number: code_block_start,
+                        section: section.clone(),
+                    });
                 }
             }
             _ => (),
         }
     }
-    (tests, old_template)
+
+    code_blocks
+}
+
+fn extract_tests_from_string(s: &str, path: &Path, file_stem: &str, templates: &HashMap<String, String>) -> Vec<Test> {
+    let mut tests = Vec::new();
+    // Oh this isn't actually a test but a legacy template
+    let mut old_template: Option<String> = None;
+    let mut combined_tests: HashMap<String, Test> = HashMap::new();
+
+    for code_block in extract_code_blocks_from_string(s) {
+        let template = match code_block.info.template_name {
+            None => "{}\n".into(),
+            Some(ref template_name) =>
+                templates.get(template_name).expect(&format!(
+                    "template {} not found for {}",
+                    template_name,
+                    path.display()
+                )).clone()
+        };
+
+        if !code_block.info.part_of.is_empty() {
+            assert!(!code_block.info.is_old_template,
+                    "'sk-part-of-...' is not allowed in legacy templates");
+            assert!(!code_block.info.ignore,
+                    "'sk-part-of-...' can't be combined with 'ignore'");
+            let text = create_test_input(&code_block.content);
+            for part_name in &code_block.info.part_of {
+                let t = combined_tests.entry(part_name.clone()).or_insert(
+                    Test {
+                        name: format!("{}_{}", file_stem, sanitize_test_name(part_name)),
+                        text: Vec::new(),
+                        ignore: false,
+                        no_run: false,
+                        should_panic: false,
+                        template_name: None,
+                    }
+                );
+                t.text.push(TextToFormat {
+                    template: template.clone(),
+                    arg: text.clone(),
+                });
+                t.no_run = t.no_run || code_block.info.no_run;
+                t.should_panic = t.should_panic || code_block.info.should_panic;
+            }
+        } else if code_block.info.is_old_template {
+            old_template = Some(code_block.content.into_iter().collect())
+        } else {
+            let name = if let Some(ref section) = code_block.section {
+                format!("{}_sect_{}_line_{}", file_stem, section, code_block.start_line_number)
+            } else {
+                format!("{}_line_{}", file_stem, code_block.start_line_number)
+            };
+            let text = create_test_input(&code_block.content);
+
+            tests.push(Test {
+                name: name,
+                text: vec![
+                    TextToFormat {
+                        template: template,
+                        arg: text,
+                    },
+                ],
+                ignore: code_block.info.ignore,
+                no_run: code_block.info.no_run,
+                should_panic: code_block.info.should_panic,
+                template_name: code_block.info.template_name.clone(),
+            });
+        }
+
+    }
+    if let Some(old_template) = old_template {
+        for t in &mut tests {
+            if t.template_name.is_none() {
+                assert_eq!(t.text.len(), 1);
+                t.text[0].template = old_template.clone();
+            }
+        }
+    }
+    for (_k, v) in combined_tests {
+        tests.push(v);
+    }
+    tests
 }
 
 fn load_templates(path: &Path) -> Result<HashMap<String, String>, IoError> {
@@ -287,6 +377,8 @@ fn load_templates(path: &Path) -> Result<HashMap<String, String>, IoError> {
         match event {
             Event::Start(Tag::CodeBlock(ref info)) => {
                 let code_block_info = parse_code_block_info(info);
+                assert!(code_block_info.part_of.is_empty(),
+                        "'sk-part-of-...' is not allowed in templates");
                 if code_block_info.is_rust {
                     code_buffer = Some(Vec::new());
                 }
@@ -299,7 +391,7 @@ fn load_templates(path: &Path) -> Result<HashMap<String, String>, IoError> {
             Event::End(Tag::CodeBlock(ref info)) => {
                 let code_block_info = parse_code_block_info(info);
                 if let Some(buf) = code_buffer.take() {
-                    if let Some(t) = code_block_info.template {
+                    if let Some(t) = code_block_info.template_name {
                         map.insert(t, buf.into_iter().collect());
                     }
                 }
@@ -326,6 +418,8 @@ fn sanitize_test_name(s: &str) -> String {
         .join("_")
 }
 
+const PART_OF_PREFIX: &str = "sk-part-of-";
+
 fn parse_code_block_info(info: &str) -> CodeBlockInfo {
     // Same as rustdoc
     let tokens = info.split(|c: char| !(c == '_' || c == '-' || c.is_alphanumeric()));
@@ -338,7 +432,8 @@ fn parse_code_block_info(info: &str) -> CodeBlockInfo {
         ignore: false,
         no_run: false,
         is_old_template: false,
-        template: None,
+        template_name: None,
+        part_of: Vec::new(),
     };
 
     for token in tokens {
@@ -365,7 +460,11 @@ fn parse_code_block_info(info: &str) -> CodeBlockInfo {
                 seen_rust_tags = true
             }
             _ if token.starts_with("skt-") => {
-                info.template = Some(token[4..].to_string());
+                info.template_name = Some(token[4..].to_string());
+                seen_rust_tags = true;
+            }
+            _ if token.starts_with(PART_OF_PREFIX) => {
+                info.part_of.push(token[PART_OF_PREFIX.len()..].into());
                 seen_rust_tags = true;
             }
             _ => seen_other_tags = true,
@@ -383,7 +482,8 @@ struct CodeBlockInfo {
     ignore: bool,
     no_run: bool,
     is_old_template: bool,
-    template: Option<String>,
+    template_name: Option<String>,
+    part_of: Vec<String>,
 }
 
 fn emit_tests(config: &Config, suite: DocTestSuite) -> Result<(), IoError> {
@@ -394,18 +494,7 @@ fn emit_tests(config: &Config, suite: DocTestSuite) -> Result<(), IoError> {
 
     for doc_test in suite.doc_tests {
         for test in &doc_test.tests {
-            let test_string = {
-                if let Some(ref t) = test.template {
-                    let template = doc_test.templates.get(t).expect(&format!(
-                        "template {} not found for {}",
-                        t,
-                        doc_test.path.display()
-                    ));
-                    create_test_runner(config, &Some(template.to_string()), test)?
-                } else {
-                    create_test_runner(config, &doc_test.old_template, test)?
-                }
-            };
+            let test_string = create_test_runner(config, test)?;
             out.push_str(&test_string);
         }
     }
@@ -437,15 +526,7 @@ fn create_test_input(lines: &[String]) -> String {
         .collect()
 }
 
-fn create_test_runner(
-    config: &Config,
-    template: &Option<String>,
-    test: &Test,
-) -> Result<String, IoError> {
-
-    let template = template.clone().unwrap_or_else(|| String::from("{}"));
-    let test_text = create_test_input(&test.text);
-
+fn create_test_runner(config: &Config, test: &Test) -> Result<String, IoError> {
     let mut s: Vec<u8> = Vec::new();
     if test.ignore {
         writeln!(s, "#[ignore]")?;
@@ -455,19 +536,17 @@ fn create_test_runner(
     }
 
     writeln!(s, "#[test] fn {}() {{", test.name)?;
-    writeln!(
-        s,
-        "    let s = &format!(r####\"{}{}\"####, r####\"{}\"####);",
-        "\n",
-        template,
-        test_text
-    )?;
+
+    writeln!(s, "    let mut s = String::new();")?;
+    for part in &test.text {
+        writeln!(s, "    s += &{};", part.generate_code())?;
+    }
 
     // if we are not running, just compile the test without running it
     if test.no_run {
         writeln!(
             s,
-            "    skeptic::rt::compile_test(r#\"{}\"#, r#\"{}\"#, r#\"{}\"#, s);",
+            "    skeptic::rt::compile_test(r#\"{}\"#, r#\"{}\"#, r#\"{}\"#, &s);",
             config.root_dir.to_str().unwrap(),
             config.out_dir.to_str().unwrap(),
             config.target_triple
@@ -475,7 +554,7 @@ fn create_test_runner(
     } else {
         writeln!(
             s,
-            "    skeptic::rt::run_test(r#\"{}\"#, r#\"{}\"#, r#\"{}\"#, s);",
+            "    skeptic::rt::run_test(r#\"{}\"#, r#\"{}\"#, r#\"{}\"#, &s);",
             config.root_dir.to_str().unwrap(),
             config.out_dir.to_str().unwrap(),
             config.target_triple
@@ -877,6 +956,7 @@ mod tests {
     #[test]
     fn test_markdown_files_of_directory() {
         let files = vec![
+            "../../tests/combined-tests.md",
             "../../tests/hashtag-test.md",
             "../../tests/section-names.md",
             "../../tests/should-panic-test.md",
@@ -925,11 +1005,14 @@ mod tests {
         );
 
 
-        let tests =
-            extract_tests_from_string(&create_test_input(&get_lines(lines)), &String::from("blah"));
+        let tests = extract_tests_from_string(
+            &create_test_input(&get_lines(lines)),
+            &Path::new("blah.rs"),
+            &String::from("blah"),
+            &HashMap::new(),  // templates
+        );
 
         let test_names: Vec<String> = tests
-            .0
             .into_iter()
             .map(|test| get_line_number_from_test_name(test))
             .collect();
@@ -968,11 +1051,14 @@ mod tests {
             }
             ```"###);
 
-        let tests =
-            extract_tests_from_string(&create_test_input(&get_lines(lines)), &String::from("blah"));
+        let tests = extract_tests_from_string(
+            &create_test_input(&get_lines(lines)),
+            &Path::new("blah.rs"),
+            &String::from("blah"),
+            &HashMap::new(),  // templates
+        );
 
         let test_names: Vec<String> = tests
-            .0
             .into_iter()
             .map(|test| get_line_number_from_test_name(test))
             .collect();
@@ -981,50 +1067,110 @@ mod tests {
     }
 
     #[test]
-    fn old_template_is_returned_for_old_skeptic_template_format() {
+    fn legacy_template_is_applied() {
         let lines = unindent(
             r###"
+            This is a test:
+
+            ```rust
+            println!("Hello, world!");
+            ```
+
+            And this is a legacy template:
+
             ```rust,skeptic-template
-            ```rust,ignore
-            use std::path::PathBuf;
-
             fn main() {{
                 {}
             }}
             ```
-            ```
             "###,
         );
-        let expected = unindent(
-            r###"
-            ```rust,ignore
-            use std::path::PathBuf;
 
-            fn main() {{
-                {}
-            }}
-            "###,
+        let tests = extract_tests_from_string(
+            &create_test_input(&get_lines(lines)),
+            Path::new("blah.rs"),
+            &String::from("blah"),
+            &HashMap::new(),  // templates
         );
-        let tests =
-            extract_tests_from_string(&create_test_input(&get_lines(lines)), &String::from("blah"));
-        assert_eq!(tests.1, Some(expected));
+
+        assert_eq!(tests.len(), 1);
+        assert_eq!(
+            tests[0].text,
+            vec![
+                TextToFormat {
+                    template: unindent(
+                        r###"
+                        fn main() {{
+                            {}
+                        }}
+                        "###,
+                    ),
+                    arg: unindent(
+                        r###"
+                        println!("Hello, world!");
+                        "###,
+                    ),
+                },
+            ],
+        );
     }
 
     #[test]
-    fn old_template_is_not_returned_if_old_skeptic_template_is_not_specified() {
+    fn partial_code_blocks_are_combined() {
         let lines = unindent(
             r###"
-            ```rust", /
-            struct Person<'a>(&'a str);
+            Define a function:
+
+            ```rust,sk-part-of-zzz
+            fn greet() {
+                println("Hello, world!");
+            }
+            ```
+
+            And use it:
+
+            ```rust,sk-part-of-zzz
             fn main() {
-              let _ = Person(\"bors\");
+                greet();
             }
             ```
             "###,
         );
-        let tests =
-            extract_tests_from_string(&create_test_input(&get_lines(lines)), &String::from("blah"));
-        assert_eq!(tests.1, None);
+
+        let tests = extract_tests_from_string(
+            &create_test_input(&get_lines(lines)),
+            Path::new("blah.rs"),
+            &String::from("blah"),
+            &HashMap::new(),  // templates
+        );
+
+        assert_eq!(tests.len(), 1);
+        assert_eq!(tests[0].name, "blah_zzz");
+        assert_eq!(
+            tests[0].text,
+            vec![
+                TextToFormat {
+                    template: "{}\n".into(),
+                    arg: unindent(
+                        r###"
+                        fn greet() {
+                            println("Hello, world!");
+                        }
+                        "###,
+                    ),
+                },
+                TextToFormat {
+                    template: "{}\n".into(),
+                    arg: unindent(
+                        r###"
+                        fn main() {
+                            greet();
+                        }
+                        "###,
+                    ),
+                },
+            ],
+        );
     }
 
 
