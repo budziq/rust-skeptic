@@ -554,7 +554,7 @@ pub mod rt {
             let metadata = cargo_metadata::metadata_deps(Some(&pth), true)?;
             let workspace_members:Vec<String> = metadata.workspace_members
                 .into_iter()
-                .map(|workspace| {format!("{} {} ({})", workspace.name, workspace.version, workspace.url)})
+                .map(|workspace| {format!("{} {} ({})", workspace.name(), workspace.version(), workspace.url())})
                 .collect();
             let deps = metadata.resolve.ok_or("Missing dependency metadata")?
                 .nodes
@@ -650,6 +650,14 @@ pub mod rt {
         fn version(&self) -> Option<String> {
             self.version.clone()
         }
+    }
+
+    fn get_edition<P: AsRef<Path>>(path: P) -> Result<String> {
+        let path = path.as_ref().join("Cargo.toml");
+        let manifest = cargo_metadata::metadata(Some(&path))?;
+        // FIXME: We have no guarantee that the first entry is the one being tested.
+        let package = &manifest.packages[0];
+        Ok(package.edition.clone())
     }
 
     // Retrieve the exact dependencies for a given build by
@@ -777,10 +785,12 @@ pub mod rt {
         let mut deps_dir = target_dir.clone();
         deps_dir.push("deps");
 
+        let edition = get_edition(&root_dir).expect("failed to read Cargo.toml");
         let mut cmd = Command::new(rustc);
         cmd.arg(in_path)
             .arg("--verbose")
             .arg("--crate-type=bin")
+            .arg(format!("--edition={}", edition))
             .arg("-L")
             .arg(&target_dir)
             .arg("-L")
@@ -821,16 +831,16 @@ pub mod rt {
 
     fn interpret_output(mut command: Command) {
         let output = command.output().unwrap();
-        write!(
-            io::stdout(),
-            "{}",
+        println!(
+            //io::stdout(),
+            "-- skeptic: rustc stdout --\n{}",
             String::from_utf8(output.stdout).unwrap()
-        ).unwrap();
-        write!(
-            io::stderr(),
-            "{}",
+        );//.unwrap();
+        println!(
+            //io::stderr(),
+            "-- skeptic: rustc stderr --\n{}",
             String::from_utf8(output.stderr).unwrap()
-        ).unwrap();
+        );//.unwrap();
         if !output.status.success() {
             panic!("Command failed:\n{:?}", command);
         }
