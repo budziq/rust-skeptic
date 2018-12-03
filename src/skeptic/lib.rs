@@ -785,18 +785,24 @@ pub mod rt {
         let mut deps_dir = target_dir.clone();
         deps_dir.push("deps");
 
-        let edition = get_edition(&root_dir).expect("failed to read Cargo.toml");
         let mut cmd = Command::new(rustc);
         cmd.arg(in_path)
             .arg("--verbose")
-            .arg("--crate-type=bin")
-            .arg(format!("--edition={}", edition))
-            .arg("-L")
+            .arg("--crate-type=bin");
+
+        // This has to come before "-L".
+        let edition = get_edition(&root_dir).expect("failed to read Cargo.toml");
+        if edition != "2015" {
+            cmd.arg(format!("--edition={}", edition));
+        }
+        
+        cmd.arg("-L")
             .arg(&target_dir)
             .arg("-L")
             .arg(&deps_dir)
             .arg("--target")
             .arg(&target_triple);
+
 
         for dep in get_rlib_dependencies(root_dir, target_dir).expect(
             "failed to read dependencies",
