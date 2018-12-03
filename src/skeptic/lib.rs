@@ -522,6 +522,7 @@ pub mod rt {
     use std::path::{Path, PathBuf};
     use std::process::Command;
     use std::ffi::OsStr;
+    use std::str::FromStr;
     use tempdir::TempDir;
 
     use self::walkdir::WalkDir;
@@ -655,9 +656,12 @@ pub mod rt {
     fn get_edition<P: AsRef<Path>>(path: P) -> Result<String> {
         let path = path.as_ref().join("Cargo.toml");
         let manifest = cargo_metadata::metadata(Some(&path))?;
-        // FIXME: We have no guarantee that the first entry is the one being tested.
-        let package = &manifest.packages[0];
-        Ok(package.edition.clone())
+        let edition = manifest.packages.iter()
+            .map(|package| &package.edition)
+            .max_by_key(|edition| u64::from_str(edition).unwrap())
+            .unwrap()
+            .clone();
+        Ok(edition)
     }
 
     // Retrieve the exact dependencies for a given build by
