@@ -831,16 +831,16 @@ pub mod rt {
 
     fn interpret_output(mut command: Command) {
         let output = command.output().unwrap();
-        println!(
-            //io::stdout(),
-            "-- skeptic: rustc stdout --\n{}",
+        write!(
+            io::stdout(),
+            "{}",
             String::from_utf8(output.stdout).unwrap()
-        );//.unwrap();
-        println!(
-            //io::stderr(),
-            "-- skeptic: rustc stderr --\n{}",
+        ).unwrap();
+        write!(
+            io::stderr(),
+            "{}",
             String::from_utf8(output.stderr).unwrap()
-        );//.unwrap();
+        ).unwrap();
         if !output.status.success() {
             panic!("Command failed:\n{:?}", command);
         }
