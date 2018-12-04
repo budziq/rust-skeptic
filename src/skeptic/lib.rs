@@ -522,6 +522,7 @@ pub mod rt {
     use std::path::{Path, PathBuf};
     use std::process::Command;
     use std::ffi::OsStr;
+    use std::str::FromStr;
     use tempdir::TempDir;
 
     use self::walkdir::WalkDir;
@@ -554,7 +555,7 @@ pub mod rt {
             let metadata = cargo_metadata::metadata_deps(Some(&pth), true)?;
             let workspace_members:Vec<String> = metadata.workspace_members
                 .into_iter()
-                .map(|workspace| {format!("{} {} ({})", workspace.name, workspace.version, workspace.url)})
+                .map(|workspace| {format!("{} {} ({})", workspace.name(), workspace.version(), workspace.url())})
                 .collect();
             let deps = metadata.resolve.ok_or("Missing dependency metadata")?
                 .nodes
@@ -650,6 +651,17 @@ pub mod rt {
         fn version(&self) -> Option<String> {
             self.version.clone()
         }
+    }
+
+    fn get_edition<P: AsRef<Path>>(path: P) -> Result<String> {
+        let path = path.as_ref().join("Cargo.toml");
+        let manifest = cargo_metadata::metadata(Some(&path))?;
+        let edition = manifest.packages.iter()
+            .map(|package| &package.edition)
+            .max_by_key(|edition| u64::from_str(edition).unwrap())
+            .unwrap()
+            .clone();
+        Ok(edition)
     }
 
     // Retrieve the exact dependencies for a given build by
@@ -780,13 +792,21 @@ pub mod rt {
         let mut cmd = Command::new(rustc);
         cmd.arg(in_path)
             .arg("--verbose")
-            .arg("--crate-type=bin")
-            .arg("-L")
+            .arg("--crate-type=bin");
+
+        // This has to come before "-L".
+        let edition = get_edition(&root_dir).expect("failed to read Cargo.toml");
+        if edition != "2015" {
+            cmd.arg(format!("--edition={}", edition));
+        }
+        
+        cmd.arg("-L")
             .arg(&target_dir)
             .arg("-L")
             .arg(&deps_dir)
             .arg("--target")
             .arg(&target_triple);
+
 
         for dep in get_rlib_dependencies(root_dir, target_dir).expect(
             "failed to read dependencies",
