@@ -1,3 +1,10 @@
+# 0.13.4
+* [Add support for rust editions](https://github.com/budziq/rust-skeptic/pull/91)
+* [Established minimal rust version as 1.24](https://github.com/budziq/rust-skeptic/pull/86)
+* [Fancier markdown escaping](https://github.com/budziq/rust-skeptic/pull/84)
+
+Contributors: Phlosioneer, Behnam Esfahbod, Michał Budzyński, Kornel
+
 # 0.13.3
 
 * [Added integration tests with rust-cookbook to Travis CI](https://github.com/budziq/rust-skeptic/commit/178276c9a5d2149bc0012afe1e3c807df2a2885e)
