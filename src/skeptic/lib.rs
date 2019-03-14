@@ -1,5 +1,3 @@
-#[macro_use]
-extern crate error_chain;
 extern crate pulldown_cmark as cmark;
 extern crate tempdir;
 extern crate glob;
@@ -534,12 +532,30 @@ pub mod rt {
     use self::walkdir::WalkDir;
     use self::serde_json::Value;
 
-    error_chain! {
-        errors { Fingerprint }
-        foreign_links {
-            Io(std::io::Error);
-            Metadata(cargo_metadata::Error);
-            Json(serde_json::Error);
+    #[derive(Debug)]
+    enum SkepticError {
+        Io(std::io::Error),
+        Metadata(cargo_metadata::Error),
+        Json(serde_json::Error),
+        Fingerprint,
+        MissingDependencyMeta,
+    }
+
+    impl From<std::io::Error> for SkepticError {
+        fn from(err: std::io::Error) -> SkepticError {
+            SkepticError::Io(err)
+        }
+    }
+
+    impl From<cargo_metadata::Error> for SkepticError {
+        fn from(err: cargo_metadata::Error) -> SkepticError {
+            SkepticError::Metadata(err)
+        }
+    }
+
+    impl From<serde_json::Error> for SkepticError {
+        fn from(err: serde_json::Error) -> SkepticError {
+            SkepticError::Json(err)
         }
     }
 
@@ -555,16 +571,16 @@ pub mod rt {
         dependencies: Vec<String>,
     }
 
-    fn get_cargo_meta<P: AsRef<Path>>(pth: P) -> Result<cargo_metadata::Metadata> {
+    fn get_cargo_meta<P: AsRef<Path>>(pth: P) -> Result<cargo_metadata::Metadata, SkepticError> {
         Ok(cargo_metadata::MetadataCommand::new().manifest_path(&pth).exec()?)
     }
 
     impl LockedDeps {
-        fn from_path<P: AsRef<Path>>(pth: P) -> Result<LockedDeps> {
+        fn from_path<P: AsRef<Path>>(pth: P) -> Result<LockedDeps, SkepticError> {
             let pth = pth.as_ref().join("Cargo.toml");
             let metadata = get_cargo_meta(&pth)?;
             let workspace_members = metadata.workspace_members;
-            let deps = metadata.resolve.ok_or("Missing dependency metadata")?
+            let deps = metadata.resolve.ok_or(SkepticError::MissingDependencyMeta)?
                 .nodes
                 .into_iter()
                 .filter(|node| workspace_members.contains(&node.id))
@@ -600,32 +616,32 @@ pub mod rt {
         mtime: SystemTime,
     }
 
-    fn guess_ext(mut pth: PathBuf, exts: &[&str]) -> Result<PathBuf> {
+    fn guess_ext(mut pth: PathBuf, exts: &[&str]) -> Result<PathBuf, SkepticError> {
         for ext in exts {
             pth.set_extension(ext);
             if pth.exists() {
                 return Ok(pth);
             }
         }
-        Err(ErrorKind::Fingerprint.into())
+        Err(SkepticError::Fingerprint.into())
     }
 
     impl Fingerprint {
-        fn from_path<P: AsRef<Path>>(pth: P) -> Result<Fingerprint> {
+        fn from_path<P: AsRef<Path>>(pth: P) -> Result<Fingerprint, SkepticError> {
             let pth = pth.as_ref();
 
             let fname = pth.file_stem().and_then(OsStr::to_str).ok_or(
-                ErrorKind::Fingerprint,
+                SkepticError::Fingerprint,
             )?;
 
             pth.extension()
                 .and_then(|e| if e == "json" { Some(e) } else { None })
-                .ok_or(ErrorKind::Fingerprint)?;
+                .ok_or(SkepticError::Fingerprint)?;
 
             let mut captures = fname.splitn(3, '-');
             captures.next();
-            let libname = captures.next().ok_or(ErrorKind::Fingerprint)?;
-            let hash = captures.next().ok_or(ErrorKind::Fingerprint)?;
+            let libname = captures.next().ok_or(SkepticError::Fingerprint)?;
+            let hash = captures.next().ok_or(SkepticError::Fingerprint)?;
 
             let mut rlib = PathBuf::from(pth);
             rlib.pop();
@@ -660,7 +676,7 @@ pub mod rt {
         }
     }
 
-    fn get_edition<P: AsRef<Path>>(path: P) -> Result<String> {
+    fn get_edition<P: AsRef<Path>>(path: P) -> Result<String, SkepticError> {
         let path = path.as_ref().join("Cargo.toml");
         let metadata = get_cargo_meta(&path)?;
         let edition = metadata.packages.iter()
@@ -676,7 +692,7 @@ pub mod rt {
     fn get_rlib_dependencies<P: AsRef<Path>>(
         root_dir: P,
         target_dir: P,
-    ) -> Result<Vec<Fingerprint>> {
+    ) -> Result<Vec<Fingerprint>, SkepticError> {
         let root_dir = root_dir.as_ref();
         let target_dir = target_dir.as_ref();
         let lock = LockedDeps::from_path(root_dir).or_else(
@@ -806,7 +822,7 @@ pub mod rt {
         if edition != "2015" {
             cmd.arg(format!("--edition={}", edition));
         }
-        
+
         cmd.arg("-L")
             .arg(&target_dir)
             .arg("-L")
