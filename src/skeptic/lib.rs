@@ -417,11 +417,17 @@ fn emit_tests(config: &Config, suite: DocTestSuite) -> Result<(), IoError> {
 /// documentation but include it for the purpose of playground links or skeptic
 /// testing.
 fn clean_omitted_line(line: &str) -> &str {
-    let trimmed = line.trim_left();
+    // XXX To silence depreciation warning of trim_left and not bump rustc
+    // requirement upto 1.30 (for trim_start) we roll our own trim_left :(
+    let trimmed = if let Some(pos) = line.find(|c: char| !c.is_whitespace()) {
+        &line[pos..]
+    } else {
+        line
+    };
 
     if trimmed.starts_with("# ") {
         &trimmed[2..]
-    } else if trimmed.trim_right() == "#" {
+    } else if line.trim() == "#" {
         // line consists of single "#" which might not be followed by newline on windows
         &trimmed[1..]
     } else {
