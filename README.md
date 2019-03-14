@@ -25,7 +25,7 @@ Also in `Cargo.toml`, to the `[package]` section add:
 build = "build.rs"
 ```
 
-That adds a [build script](http://doc.crates.io/build-script.html)
+That adds a [build script](https://doc.crates.io/build-script.html)
 through which you will tell Skeptic to build test cases from a set
 of Markdown files.
 
@@ -220,7 +220,7 @@ fn main() {{
 ````
 
 Templates are [Rust format
-specifiers](http://doc.rust-lang.org/std/fmt/index.html) that must
+specifiers](https://doc.rust-lang.org/std/fmt/index.html) that must
 take a single argument (i.e. they need to contain the string
 "{}"). See [the (old) template example](template-example.md) for more
 on templates.
@@ -253,8 +253,8 @@ custom support in the markdown renderer.
 
 Licensed under either of
 
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://apache.org/licenses/LICENSE-2.0)
-- MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or https://apache.org/licenses/LICENSE-2.0)
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or https://opensource.org/licenses/MIT)
 
 ### Contribution
 
