@@ -249,6 +249,10 @@ Like rustdoc, skeptic will remove preceding `# ` from any lines of
 code before compiling them. Hiding such lines during display requires
 custom support in the markdown renderer.
 
+## Simpler solution
+
+If you don't need advanced features but just to test markdown content, the [doc-comment](https://crates.io/crates/doc-comment) crate might better match your needs. It also prevents recompilations and can be used as a `dev-dependency`.
+
 ## License
 
 Licensed under either of
