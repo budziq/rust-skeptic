@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate error_chain;
+extern crate failure;
 extern crate pulldown_cmark as cmark;
 extern crate tempdir;
 extern crate glob;
@@ -533,12 +534,14 @@ pub mod rt {
 
     use self::walkdir::WalkDir;
     use self::serde_json::Value;
+    
+    use failure::ResultExt as _;
 
     error_chain! {
         errors { Fingerprint }
         foreign_links {
             Io(std::io::Error);
-            Metadata(cargo_metadata::Error);
+            Metadata(failure::Compat<cargo_metadata::Error>);
             Json(serde_json::Error);
         }
     }
@@ -556,7 +559,7 @@ pub mod rt {
     }
 
     fn get_cargo_meta<P: AsRef<Path>>(pth: P) -> Result<cargo_metadata::Metadata> {
-        Ok(cargo_metadata::MetadataCommand::new().manifest_path(&pth).exec()?)
+        Ok(cargo_metadata::MetadataCommand::new().manifest_path(&pth).exec().compat()?)
     }
 
     impl LockedDeps {
