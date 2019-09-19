@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate error_chain;
 extern crate pulldown_cmark as cmark;
-extern crate tempdir;
+extern crate tempfile;
 extern crate glob;
 extern crate bytecount;
 
@@ -529,7 +529,7 @@ pub mod rt {
     use std::process::Command;
     use std::ffi::OsStr;
     use std::str::FromStr;
-    use tempdir::TempDir;
+    use tempfile::TempDir;
 
     use self::walkdir::WalkDir;
     use self::serde_json::Value;
@@ -730,7 +730,7 @@ pub mod rt {
 
     pub fn compile_test(root_dir: &str, out_dir: &str, target_triple: &str, test_text: &str) {
         let rustc = &env::var("RUSTC").unwrap_or_else(|_| String::from("rustc"));
-        let outdir = &TempDir::new("rust-skeptic").unwrap();
+        let outdir = &TempDir::new_in("rust-skeptic").unwrap();
         let testcase_path = &outdir.path().join("test.rs");
         let binary_path = &outdir.path().join("out.exe");
 
@@ -748,7 +748,7 @@ pub mod rt {
 
     pub fn run_test(root_dir: &str, out_dir: &str, target_triple: &str, test_text: &str) {
         let rustc = &env::var("RUSTC").unwrap_or_else(|_| String::from("rustc"));
-        let outdir = &TempDir::new("rust-skeptic").unwrap();
+        let outdir = &TempDir::new_in("rust-skeptic").unwrap();
         let testcase_path = &outdir.path().join("test.rs");
         let binary_path = &outdir.path().join("out.exe");
 
