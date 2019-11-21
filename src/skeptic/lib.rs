@@ -393,17 +393,18 @@ fn emit_tests(config: &Config, suite: DocTestSuite) -> Result<(), IoError> {
     out.push_str("extern crate skeptic;\n");
 
     for doc_test in suite.doc_tests {
-        for test in &doc_test.tests {
+        for (i, test) in doc_test.tests.into_iter().enumerate() {
             let test_string = {
+                let path = format!("{}-{}.rs", doc_test.path.file_stem().unwrap().to_string_lossy(), i);
                 if let Some(ref t) = test.template {
                     let template = doc_test.templates.get(t).expect(&format!(
                         "template {} not found for {}",
                         t,
                         doc_test.path.display()
                     ));
-                    create_test_runner(config, &Some(template.to_string()), test)?
+                    create_test_runner(config, &Some(template.to_string()), &path, &test)?
                 } else {
-                    create_test_runner(config, &doc_test.old_template, test)?
+                    create_test_runner(config, &doc_test.old_template, &path, &test)?
                 }
             };
             out.push_str(&test_string);
@@ -446,6 +447,7 @@ fn create_test_input(lines: &[String]) -> String {
 fn create_test_runner(
     config: &Config,
     template: &Option<String>,
+    file_name: &str,
     test: &Test,
 ) -> Result<String, IoError> {
 
@@ -473,17 +475,19 @@ fn create_test_runner(
     if test.no_run {
         writeln!(
             s,
-            "    skeptic::rt::compile_test(r#\"{}\"#, r#\"{}\"#, r#\"{}\"#, s);",
+            "    skeptic::rt::compile_test(r#\"{}\"#, r#\"{}\"#, r#\"{}\"#, r#\"{}\"#, s);",
             config.root_dir.to_str().unwrap(),
             config.out_dir.to_str().unwrap(),
+            file_name,
             config.target_triple
         )?;
     } else {
         writeln!(
             s,
-            "    skeptic::rt::run_test(r#\"{}\"#, r#\"{}\"#, r#\"{}\"#, s);",
+            "    skeptic::rt::run_test(r#\"{}\"#, r#\"{}\"#, r#\"{}\"#, r#\"{}\"#, s);",
             config.root_dir.to_str().unwrap(),
             config.out_dir.to_str().unwrap(),
+            file_name,
             config.target_triple
         )?;
     }
@@ -728,10 +732,10 @@ pub mod rt {
         )
     }
 
-    pub fn compile_test(root_dir: &str, out_dir: &str, target_triple: &str, test_text: &str) {
+    pub fn compile_test(root_dir: &str, out_dir: &str, file_name: &str, target_triple: &str, test_text: &str) {
         let rustc = &env::var("RUSTC").unwrap_or_else(|_| String::from("rustc"));
         let outdir = &TempDir::new("rust-skeptic").unwrap();
-        let testcase_path = &outdir.path().join("test.rs");
+        let testcase_path = &outdir.path().join(file_name);
         let binary_path = &outdir.path().join("out.exe");
 
         write_test_case(testcase_path, test_text);
@@ -746,10 +750,10 @@ pub mod rt {
         );
     }
 
-    pub fn run_test(root_dir: &str, out_dir: &str, target_triple: &str, test_text: &str) {
+    pub fn run_test(root_dir: &str, out_dir: &str, file_name: &str, target_triple: &str, test_text: &str) {
         let rustc = &env::var("RUSTC").unwrap_or_else(|_| String::from("rustc"));
         let outdir = &TempDir::new("rust-skeptic").unwrap();
-        let testcase_path = &outdir.path().join("test.rs");
+        let testcase_path = &outdir.path().join(file_name);
         let binary_path = &outdir.path().join("out.exe");
 
         write_test_case(testcase_path, test_text);
