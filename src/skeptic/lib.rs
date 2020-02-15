@@ -243,9 +243,9 @@ fn extract_tests_from_string(s: &str, file_stem: &str) -> (Vec<Test>, Option<Str
                         old_template = Some(buf.into_iter().collect())
                     } else {
                         let name = if let Some(ref section) = section {
-                            format!("{}_sect_{}_line_{}", file_stem, section, code_block_start)
+                            format!("test_{}_sect_{}_line_{}", file_stem, section, code_block_start)
                         } else {
-                            format!("{}_line_{}", file_stem, code_block_start)
+                            format!("test_{}_line_{}", file_stem, code_block_start)
                         };
                         tests.push(Test {
                             name: name,
