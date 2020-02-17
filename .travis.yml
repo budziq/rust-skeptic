@@ -13,7 +13,7 @@ matrix:
 
     # skeptic unit tests
     - os: linux
-      rust: 1.26.0
+      rust: 1.32.0
     - os: linux
       rust: stable
     - os: linux

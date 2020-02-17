@@ -25,10 +25,9 @@ test_rust_cookbook() {
     echo "Rust Cookbook integration tests!"
     cd ..
     rm -rf rust-cookbook || true
-    git clone https://github.com/rust-lang-nursery/rust-cookbook.git
+    git clone https://github.com/budziq/rust-cookbook.git
     cd rust-cookbook
-    git checkout f8c48a096f18acc224004af0a4ce83e9997cbd80
-    sed -ie 's|skeptic.*|skeptic = { path = "../rust-skeptic/src/skeptic"}|g' ./Cargo.toml
+    git checkout bddd3ad3d44dc7cca869fec935509f76066aac07
     cargo test
 }
 
