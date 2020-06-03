@@ -555,7 +555,7 @@ pub mod rt {
         dependencies: Vec<String>,
     }
 
-    fn get_cargo_meta<P: AsRef<Path>>(pth: P) -> Result<cargo_metadata::Metadata> {
+    fn get_cargo_meta<P: AsRef<Path> + std::convert::AsRef<std::ffi::OsStr>>(pth: P) -> Result<cargo_metadata::Metadata> {
         Ok(cargo_metadata::MetadataCommand::new().manifest_path(&pth).exec()?)
     }
 
@@ -613,19 +613,19 @@ pub mod rt {
     impl Fingerprint {
         fn from_path<P: AsRef<Path>>(pth: P) -> Result<Fingerprint> {
             let pth = pth.as_ref();
-
             let fname = pth.file_stem().and_then(OsStr::to_str).ok_or(
                 ErrorKind::Fingerprint,
             )?;
-
+            // Retrieve the hash from the parent directory's name
+            let hash = pth.parent().and_then(Path::to_str).ok_or(
+                ErrorKind::Fingerprint,
+            )?.rsplit('-').next().expect("should have a hash in folder name");
             pth.extension()
                 .and_then(|e| if e == "json" { Some(e) } else { None })
                 .ok_or(ErrorKind::Fingerprint)?;
-
             let mut captures = fname.splitn(3, '-');
             captures.next();
             let libname = captures.next().ok_or(ErrorKind::Fingerprint)?;
-            let hash = captures.next().ok_or(ErrorKind::Fingerprint)?;
 
             let mut rlib = PathBuf::from(pth);
             rlib.pop();
@@ -813,7 +813,6 @@ pub mod rt {
             .arg(&deps_dir)
             .arg("--target")
             .arg(&target_triple);
-
 
         for dep in get_rlib_dependencies(root_dir, target_dir).expect(
             "failed to read dependencies",
