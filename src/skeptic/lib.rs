@@ -619,7 +619,7 @@ pub mod rt {
             // Retrieve the hash from the parent directory's name
             let hash = pth.parent().and_then(Path::to_str).ok_or(
                 ErrorKind::Fingerprint,
-            )?.rsplit('-').next().expect("should have a hash in folder name");
+            )?.rsplit('-').next().ok_or(ErrorKind::Fingerprint)?;
             pth.extension()
                 .and_then(|e| if e == "json" { Some(e) } else { None })
                 .ok_or(ErrorKind::Fingerprint)?;
