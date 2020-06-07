@@ -620,7 +620,6 @@ pub mod rt {
             libname_parts.reverse();
             let libname=libname_parts.join("_");
 
-            println!("{}", libname);
             pth.extension()
                 .and_then(|e| if e == "json" { Some(e) } else { None })
                 .ok_or(ErrorKind::Fingerprint)?;
