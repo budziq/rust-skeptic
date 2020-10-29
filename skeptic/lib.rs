@@ -854,7 +854,6 @@ mod tests {
 
     use self::unindent::unindent;
     use super::*;
-    use std::io;
 
     #[test]
     fn test_omitted_lines() {
