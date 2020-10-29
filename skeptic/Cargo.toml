@@ -29,7 +29,3 @@ default-features = false
 [dependencies.pulldown-cmark]
 version = "0.2"
 default-features = false
-
-[lib]
-name = "skeptic"
-path = "lib.rs"
