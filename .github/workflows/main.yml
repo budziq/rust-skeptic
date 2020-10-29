@@ -16,8 +16,12 @@ jobs:
         exclude:
           - os: macos-latest
             rust: beta
+          - os: macos-latest
+            rust: 1.32.0
           - os: windows-latest
             rust: beta
+          - os: windows-latest
+            rust: 1.32.0
 
     runs-on: ${{ matrix.os }}
 
