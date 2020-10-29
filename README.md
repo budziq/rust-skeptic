@@ -1,7 +1,6 @@
 # Be a Rust Documentation Skeptic
 
-[![Unix build status](https://travis-ci.org/budziq/rust-skeptic.svg?branch=master)](https://travis-ci.org/budziq/rust-skeptic)
-[![Windows build status](https://ci.appveyor.com/api/projects/status/l1f74hon37wt2vce/branch/master?svg=true)](https://ci.appveyor.com/project/budziq/rust-skeptic/branch/master)
+[![Build status](https://github.com/budziq/skeptic/workflows/CI/badge.svg)](https://github.com/budziq/skeptic/actions?query=workflow%3ACI)
 [![crates.io](https://img.shields.io/crates/v/skeptic.svg)](https://crates.io/crates/skeptic)
 [![Documentation](https://docs.rs/skeptic/badge.svg)](https://docs.rs/skeptic)
 
@@ -40,7 +39,7 @@ fn main() {
 }
 ```
 
-If you want to test multiple markdown files, you just need to build 
+If you want to test multiple markdown files, you just need to build
 a list of filenames and supply that to `generate_doc_tests`. To help
 you, the method `markdown_files_of_directory` will create such a list,
 enumerating the markdown files in the specified directory. You can add
