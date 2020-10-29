@@ -1,3 +1,10 @@
+# 0.13.5
+
+* [Fixed problems with changed target directory layout](https://github.com/budziq/rust-skeptic/pull/121)
+* [Bumped minimal Rust version to 1.32](https://github.com/budziq/rust-skeptic/pull/114)
+
+Contributors: icefoxen, Michał Budzyński, Andrew Gauger, Dirkjan Ochtman
+
 # 0.13.4
 * [Add support for rust editions](https://github.com/budziq/rust-skeptic/pull/91)
 * [Established minimal rust version as 1.24](https://github.com/budziq/rust-skeptic/pull/86)
