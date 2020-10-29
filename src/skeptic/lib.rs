@@ -1,17 +1,17 @@
 #[macro_use]
 extern crate error_chain;
+extern crate bytecount;
+extern crate glob;
 extern crate pulldown_cmark as cmark;
 extern crate tempfile;
-extern crate glob;
-extern crate bytecount;
 
+use cmark::{Event, Parser, Tag};
+use std::collections::HashMap;
 use std::env;
 use std::fs::File;
-use std::io::{self, Read, Write, Error as IoError};
+use std::io::{self, Error as IoError, Read, Write};
 use std::mem;
-use std::path::{PathBuf, Path};
-use std::collections::HashMap;
-use cmark::{Parser, Event, Tag};
+use std::path::{Path, PathBuf};
 
 /// Returns a list of markdown files under a directory.
 ///
@@ -88,7 +88,8 @@ where
         return;
     }
 
-    let docs = docs.iter()
+    let docs = docs
+        .iter()
         .cloned()
         .map(|path| path.as_ref().to_str().unwrap().to_owned())
         .filter(|d| !d.ends_with(".skt.md"))
@@ -114,9 +115,9 @@ where
     let config = Config {
         out_dir: PathBuf::from(out_dir),
         root_dir: PathBuf::from(cargo_manifest_dir),
-        out_file: out_file,
+        out_file,
         target_triple: env::var("TARGET").expect("could not get target triple"),
-        docs: docs,
+        docs,
     };
 
     run(&config);
@@ -163,7 +164,7 @@ fn extract_tests(config: &Config) -> Result<DocTestSuite, IoError> {
         let new_tests = extract_tests_from_file(path)?;
         doc_tests.push(new_tests);
     }
-    Ok(DocTestSuite { doc_tests: doc_tests })
+    Ok(DocTestSuite { doc_tests })
 }
 
 enum Buffer {
@@ -187,7 +188,7 @@ fn extract_tests_from_file(path: &Path) -> Result<DocTest, IoError> {
         path: path.to_owned(),
         old_template: tests.1,
         tests: tests.0,
-        templates: templates,
+        templates,
     })
 }
 
@@ -248,7 +249,7 @@ fn extract_tests_from_string(s: &str, file_stem: &str) -> (Vec<Test>, Option<Str
                             format!("{}_line_{}", file_stem, code_block_start)
                         };
                         tests.push(Test {
-                            name: name,
+                            name,
                             text: buf,
                             ignore: code_block_info.ignore,
                             no_run: code_block_info.no_run,
@@ -314,10 +315,12 @@ fn load_templates(path: &Path) -> Result<HashMap<String, String>, IoError> {
 fn sanitize_test_name(s: &str) -> String {
     s.to_ascii_lowercase()
         .chars()
-        .map(|ch| if ch.is_ascii() && ch.is_alphanumeric() {
-            ch
-        } else {
-            '_'
+        .map(|ch| {
+            if ch.is_ascii() && ch.is_alphanumeric() {
+                ch
+            } else {
+                '_'
+            }
         })
         .collect::<String>()
         .split('_')
@@ -396,11 +399,9 @@ fn emit_tests(config: &Config, suite: DocTestSuite) -> Result<(), IoError> {
         for test in &doc_test.tests {
             let test_string = {
                 if let Some(ref t) = test.template {
-                    let template = doc_test.templates.get(t).expect(&format!(
-                        "template {} not found for {}",
-                        t,
-                        doc_test.path.display()
-                    ));
+                    let template = doc_test.templates.get(t).unwrap_or_else(|| {
+                        panic!("template {} not found for {}", t, doc_test.path.display())
+                    });
                     create_test_runner(config, &Some(template.to_string()), test)?
                 } else {
                     create_test_runner(config, &doc_test.old_template, test)?
@@ -448,7 +449,6 @@ fn create_test_runner(
     template: &Option<String>,
     test: &Test,
 ) -> Result<String, IoError> {
-
     let template = template.clone().unwrap_or_else(|| String::from("{}"));
     let test_text = create_test_input(&test.text);
 
@@ -463,10 +463,8 @@ fn create_test_runner(
     writeln!(s, "#[test] fn {}() {{", test.name)?;
     writeln!(
         s,
-        "    let s = &format!(r####\"{}{}\"####, r####\"{}\"####);",
-        "\n",
-        template,
-        test_text
+        "    let s = &format!(r####\"\n{}\"####, r####\"{}\"####);",
+        template, test_text
     )?;
 
     // if we are not running, just compile the test without running it
@@ -489,7 +487,7 @@ fn create_test_runner(
     }
 
     writeln!(s, "}}")?;
-    writeln!(s, "")?;
+    writeln!(s)?;
 
     Ok(String::from_utf8(s).unwrap())
 }
@@ -517,17 +515,17 @@ pub mod rt {
     extern crate cargo_metadata;
     extern crate walkdir;
 
-    use std::collections::HashMap;
     use std::collections::hash_map::Entry;
+    use std::collections::HashMap;
     use std::time::SystemTime;
 
-    use std::{self, env};
+    use std::ffi::OsStr;
     use std::fs::File;
-    use std::io::{self, Write};
+    use std::io::Write;
     use std::path::{Path, PathBuf};
     use std::process::Command;
-    use std::ffi::OsStr;
     use std::str::FromStr;
+    use std::{self, env};
     use tempfile;
 
     use self::walkdir::WalkDir;
@@ -552,8 +550,12 @@ pub mod rt {
         dependencies: Vec<String>,
     }
 
-    fn get_cargo_meta<P: AsRef<Path> + std::convert::AsRef<std::ffi::OsStr>>(pth: P) -> Result<cargo_metadata::Metadata> {
-        Ok(cargo_metadata::MetadataCommand::new().manifest_path(&pth).exec()?)
+    fn get_cargo_meta<P: AsRef<Path> + std::convert::AsRef<std::ffi::OsStr>>(
+        pth: P,
+    ) -> Result<cargo_metadata::Metadata> {
+        Ok(cargo_metadata::MetadataCommand::new()
+            .manifest_path(&pth)
+            .exec()?)
     }
 
     impl LockedDeps {
@@ -561,14 +563,18 @@ pub mod rt {
             let pth = pth.as_ref().join("Cargo.toml");
             let metadata = get_cargo_meta(&pth)?;
             let workspace_members = metadata.workspace_members;
-            let deps = metadata.resolve.ok_or("Missing dependency metadata")?
+            let deps = metadata
+                .resolve
+                .ok_or("Missing dependency metadata")?
                 .nodes
                 .into_iter()
                 .filter(|node| workspace_members.contains(&node.id))
                 .flat_map(|node| node.dependencies.into_iter())
                 .chain(workspace_members.clone());
 
-            Ok(LockedDeps { dependencies: deps.map(|node| node.repr ).collect() })
+            Ok(LockedDeps {
+                dependencies: deps.map(|node| node.repr).collect(),
+            })
         }
     }
 
@@ -580,9 +586,7 @@ pub mod rt {
                 let mut it = val.split_whitespace();
 
                 match (it.next(), it.next()) {
-                    (Some(name), Some(val)) => {
-                        Some((name.replace("-", "_").to_owned(), val.to_owned()))
-                    }
+                    (Some(name), Some(val)) => Some((name.replace("-", "_"), val.to_owned())),
                     _ => None,
                 }
             })
@@ -612,13 +616,16 @@ pub mod rt {
             let pth = pth.as_ref();
 
             // Use the parent path to get libname and hash, replacing - with _
-            let mut captures = pth.parent().and_then(Path::file_stem).and_then(OsStr::to_str).ok_or(
-                ErrorKind::Fingerprint,
-            )?.rsplit('-');
+            let mut captures = pth
+                .parent()
+                .and_then(Path::file_stem)
+                .and_then(OsStr::to_str)
+                .ok_or(ErrorKind::Fingerprint)?
+                .rsplit('-');
             let hash = captures.next().ok_or(ErrorKind::Fingerprint)?;
             let mut libname_parts = captures.collect::<Vec<_>>();
             libname_parts.reverse();
-            let libname=libname_parts.join("_");
+            let libname = libname_parts.join("_");
 
             pth.extension()
                 .and_then(|e| if e == "json" { Some(e) } else { None })
@@ -635,10 +642,10 @@ pub mod rt {
             let mtime = file.metadata()?.modified()?;
 
             Ok(Fingerprint {
-                libname: libname.to_owned(),
+                libname,
                 version: None,
-                rlib: rlib,
-                mtime: mtime,
+                rlib,
+                mtime,
             })
         }
 
@@ -654,7 +661,9 @@ pub mod rt {
     fn get_edition<P: AsRef<Path>>(path: P) -> Result<String> {
         let path = path.as_ref().join("Cargo.toml");
         let metadata = get_cargo_meta(&path)?;
-        let edition = metadata.packages.iter()
+        let edition = metadata
+            .packages
+            .iter()
             .map(|package| &package.edition)
             .max_by_key(|edition| u64::from_str(edition).unwrap())
             .unwrap()
@@ -670,16 +679,14 @@ pub mod rt {
     ) -> Result<Vec<Fingerprint>> {
         let root_dir = root_dir.as_ref();
         let target_dir = target_dir.as_ref();
-        let lock = LockedDeps::from_path(root_dir).or_else(
-            |_| {
-                // could not find Cargo.lock in $CARGO_MAINFEST_DIR
-                // try relative to target_dir
-                let mut root_dir = PathBuf::from(target_dir);
-                root_dir.pop();
-                root_dir.pop();
-                LockedDeps::from_path(root_dir)
-            },
-        )?;
+        let lock = LockedDeps::from_path(root_dir).or_else(|_| {
+            // could not find Cargo.lock in $CARGO_MAINFEST_DIR
+            // try relative to target_dir
+            let mut root_dir = PathBuf::from(target_dir);
+            root_dir.pop();
+            root_dir.pop();
+            LockedDeps::from_path(root_dir)
+        })?;
 
         let fingerprint_dir = target_dir.join(".fingerprint/");
         let locked_deps: HashMap<String, String> = lock.collect();
@@ -711,12 +718,10 @@ pub mod rt {
             }
         }
 
-        Ok(
-            found_deps
-                .into_iter()
-                .filter_map(|(_, val)| if val.rlib.exists() { Some(val) } else { None })
-                .collect(),
-        )
+        Ok(found_deps
+            .into_iter()
+            .filter_map(|(_, val)| if val.rlib.exists() { Some(val) } else { None })
+            .collect())
     }
 
     fn temp_dir(prefix: &str) -> tempfile::TempDir {
@@ -774,7 +779,6 @@ pub mod rt {
         target_triple: &str,
         compile_type: CompileType,
     ) {
-
         // OK, here's where a bunch of magic happens using assumptions
         // about cargo internals. We are going to use rustc to compile
         // the examples, but to do that we've got to tell it where to
@@ -792,16 +796,14 @@ pub mod rt {
         deps_dir.push("deps");
 
         let mut cmd = Command::new(rustc);
-        cmd.arg(in_path)
-            .arg("--verbose")
-            .arg("--crate-type=bin");
+        cmd.arg(in_path).arg("--verbose").arg("--crate-type=bin");
 
         // This has to come before "-L".
         let edition = get_edition(&root_dir).expect("failed to read Cargo.toml");
         if edition != "2015" {
             cmd.arg(format!("--edition={}", edition));
         }
-        
+
         cmd.arg("-L")
             .arg(&target_dir)
             .arg("-L")
@@ -809,9 +811,7 @@ pub mod rt {
             .arg("--target")
             .arg(&target_triple);
 
-        for dep in get_rlib_dependencies(root_dir, target_dir).expect(
-            "failed to read dependencies",
-        )
+        for dep in get_rlib_dependencies(root_dir, target_dir).expect("failed to read dependencies")
         {
             cmd.arg("--extern");
             cmd.arg(format!(
@@ -823,12 +823,10 @@ pub mod rt {
 
         match compile_type {
             CompileType::Full => cmd.arg("-o").arg(out_path),
-            CompileType::Check => {
-                cmd.arg(format!(
-                    "--emit=dep-info={0}.d,metadata={0}.m",
-                    out_path.display()
-                ))
-            }
+            CompileType::Check => cmd.arg(format!(
+                "--emit=dep-info={0}.d,metadata={0}.m",
+                out_path.display()
+            )),
         };
 
         interpret_output(cmd);
@@ -842,16 +840,8 @@ pub mod rt {
 
     fn interpret_output(mut command: Command) {
         let output = command.output().unwrap();
-        write!(
-            io::stdout(),
-            "{}",
-            String::from_utf8(output.stdout).unwrap()
-        ).unwrap();
-        write!(
-            io::stderr(),
-            "{}",
-            String::from_utf8(output.stderr).unwrap()
-        ).unwrap();
+        print!("{}", String::from_utf8(output.stdout).unwrap());
+        eprint!("{}", String::from_utf8(output.stderr).unwrap());
         if !output.status.success() {
             panic!("Command failed:\n{:?}", command);
         }
@@ -862,8 +852,9 @@ pub mod rt {
 mod tests {
     extern crate unindent;
 
-    use super::*;
     use self::unindent::unindent;
+    use super::*;
+    use std::io;
 
     #[test]
     fn test_omitted_lines() {
@@ -912,9 +903,7 @@ mod tests {
         assert_eq!(sanitize_test_name("__my_fun_"), "my_fun");
         assert_eq!(sanitize_test_name("^$@__my@#_fun#$@"), "my_fun");
         assert_eq!(
-            sanitize_test_name(
-                "my_long__fun___name___with____a_____lot______of_______spaces",
-            ),
+            sanitize_test_name("my_long__fun___name___with____a_____lot______of_______spaces",),
             "my_long_fun_name_with_a_lot_of_spaces"
         );
         assert_eq!(sanitize_test_name("Löwe 老虎 Léopard"), "l_we_l_opard");
@@ -945,7 +934,6 @@ mod tests {
             ```"###,
         );
 
-
         let tests =
             extract_tests_from_string(&create_test_input(&get_lines(lines)), &String::from("blah"));
 
@@ -958,10 +946,10 @@ mod tests {
         assert_eq!(test_names, vec!["3", "11"]);
     }
 
-
     #[test]
     fn line_numbers_displayed_are_for_the_beginning_of_each_section() {
-        let lines = unindent(r###"
+        let lines = unindent(
+            r###"
             ## Test Case  Names   With    weird     spacing       are        generated      without        error.
 
             ```rust", /
@@ -987,7 +975,8 @@ mod tests {
             fn main() {
               let _ = Person(\"bors\");
             }
-            ```"###);
+            ```"###,
+        );
 
         let tests =
             extract_tests_from_string(&create_test_input(&get_lines(lines)), &String::from("blah"));
@@ -1048,16 +1037,19 @@ mod tests {
         assert_eq!(tests.1, None);
     }
 
-
     fn get_line_number_from_test_name(test: Test) -> String {
-        String::from(test.name.split('_').last().expect(
-            "There were no underscores!",
-        ))
+        String::from(
+            test.name
+                .split('_')
+                .last()
+                .expect("There were no underscores!"),
+        )
     }
 
     fn get_lines(lines: String) -> Vec<String> {
-        lines.split('\n')
-            .map(|string_slice| format!("{}\n", string_slice))//restore line endings since they are removed by split.
+        lines
+            .split('\n')
+            .map(|string_slice| format!("{}\n", string_slice)) //restore line endings since they are removed by split.
             .collect()
     }
 }
