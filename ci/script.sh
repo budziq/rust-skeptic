@@ -15,7 +15,7 @@ main_tests() {
     cargo test
     cargo test --release
 
-    cd src/skeptic
+    cd skeptic
     cargo test
     cargo test --release
 }
