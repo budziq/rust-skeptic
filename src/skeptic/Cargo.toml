@@ -12,10 +12,6 @@ documentation = "https://docs.rs/skeptic"
 keywords = ["markdown", "documentation", "testing"]
 categories = ["development-tools", "development-tools::testing"]
 
-[badges]
-travis-ci = { repository = "budziq/rust-skeptic" }
-appveyor = { repository = "budziq/rust-skeptic" }
-
 [dependencies]
 tempfile = "3"
 glob = "0.3"
