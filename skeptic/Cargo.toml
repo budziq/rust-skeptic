@@ -13,19 +13,13 @@ keywords = ["markdown", "documentation", "testing"]
 categories = ["development-tools", "development-tools::testing"]
 
 [dependencies]
-tempfile = "3"
-glob = "0.3"
-walkdir = "2.2"
-cargo_metadata = "0.12"
 bytecount = "0.6"
+cargo_metadata = "0.12"
+error-chain = { version = "0.12", default-feature = false }
+glob = "0.3"
+pulldown-cmark = { version = "0.2", default-features = false }
+tempfile = "3"
+walkdir = "2.2"
 
 [dev-dependencies]
 unindent = "0.1"
-
-[dependencies.error-chain]
-version = "0.12"
-default-features = false
-
-[dependencies.pulldown-cmark]
-version = "0.2"
-default-features = false
