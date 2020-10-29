@@ -514,7 +514,6 @@ fn write_if_contents_changed(name: &Path, contents: &str) -> Result<(), IoError>
 }
 
 pub mod rt {
-    extern crate serde_json;
     extern crate cargo_metadata;
     extern crate walkdir;
 
@@ -532,14 +531,12 @@ pub mod rt {
     use tempdir::TempDir;
 
     use self::walkdir::WalkDir;
-    use self::serde_json::Value;
 
     error_chain! {
         errors { Fingerprint }
         foreign_links {
             Io(std::io::Error);
             Metadata(cargo_metadata::Error);
-            Json(serde_json::Error);
         }
     }
 
@@ -555,7 +552,7 @@ pub mod rt {
         dependencies: Vec<String>,
     }
 
-    fn get_cargo_meta<P: AsRef<Path>>(pth: P) -> Result<cargo_metadata::Metadata> {
+    fn get_cargo_meta<P: AsRef<Path> + std::convert::AsRef<std::ffi::OsStr>>(pth: P) -> Result<cargo_metadata::Metadata> {
         Ok(cargo_metadata::MetadataCommand::new().manifest_path(&pth).exec()?)
     }
 
@@ -614,18 +611,18 @@ pub mod rt {
         fn from_path<P: AsRef<Path>>(pth: P) -> Result<Fingerprint> {
             let pth = pth.as_ref();
 
-            let fname = pth.file_stem().and_then(OsStr::to_str).ok_or(
+            // Use the parent path to get libname and hash, replacing - with _
+            let mut captures = pth.parent().and_then(Path::file_stem).and_then(OsStr::to_str).ok_or(
                 ErrorKind::Fingerprint,
-            )?;
+            )?.rsplit('-');
+            let hash = captures.next().ok_or(ErrorKind::Fingerprint)?;
+            let mut libname_parts = captures.collect::<Vec<_>>();
+            libname_parts.reverse();
+            let libname=libname_parts.join("_");
 
             pth.extension()
                 .and_then(|e| if e == "json" { Some(e) } else { None })
                 .ok_or(ErrorKind::Fingerprint)?;
-
-            let mut captures = fname.splitn(3, '-');
-            captures.next();
-            let libname = captures.next().ok_or(ErrorKind::Fingerprint)?;
-            let hash = captures.next().ok_or(ErrorKind::Fingerprint)?;
 
             let mut rlib = PathBuf::from(pth);
             rlib.pop();
@@ -636,16 +633,10 @@ pub mod rt {
 
             let file = File::open(pth)?;
             let mtime = file.metadata()?.modified()?;
-            let parsed: Value = serde_json::from_reader(file)?;
-            let vers = parsed["local"]["Precalculated"]
-                .as_str()
-                // fingerprint file sometimes has different form
-                .or_else(|| parsed["local"][0]["Precalculated"].as_str())
-                .map(|v| v.to_owned());
 
             Ok(Fingerprint {
                 libname: libname.to_owned(),
-                version: vers,
+                version: None,
                 rlib: rlib,
                 mtime: mtime,
             })
@@ -813,7 +804,6 @@ pub mod rt {
             .arg(&deps_dir)
             .arg("--target")
             .arg(&target_triple);
-
 
         for dep in get_rlib_dependencies(root_dir, target_dir).expect(
             "failed to read dependencies",
