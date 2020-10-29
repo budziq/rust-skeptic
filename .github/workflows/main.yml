@@ -34,6 +34,19 @@ jobs:
           args: --all-targets
       - run: bash ci/script.sh
 
+  Integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+      - run: git clone https://github.com/budziq/rust-cookbook.git
+      - run: cd rust-cookbook
+      - run: git checkout bddd3ad3d44dc7cca869fec935509f76066aac07
+      - run: cargo test
+
   Lint:
     runs-on: ubuntu-latest
     steps:
