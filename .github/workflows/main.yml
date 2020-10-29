@@ -38,6 +38,18 @@ jobs:
           args: --all-targets
       - run: bash ci/script.sh
 
+  Integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+      - run: git clone -b skeptic-test https://github.com/djc/rust-cookbook &&
+          cd rust-cookbook &&
+          cargo test
+
   Lint:
     runs-on: ubuntu-latest
     steps:
