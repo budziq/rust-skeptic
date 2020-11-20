@@ -421,6 +421,7 @@ fn emit_tests(config: &Config, suite: DocTestSuite) -> Result<(), IoError> {
 /// These are commonly an indication to omit the line from user-facing
 /// documentation but include it for the purpose of playground links or skeptic
 /// testing.
+#[allow(clippy::manual_strip)] // Relies on str::strip_prefix(), MSRV 1.45
 fn clean_omitted_line(line: &str) -> &str {
     // XXX To silence depreciation warning of trim_left and not bump rustc
     // requirement upto 1.30 (for trim_start) we roll our own trim_left :(
@@ -430,7 +431,6 @@ fn clean_omitted_line(line: &str) -> &str {
         line
     };
 
-    #[allow(clippy::manual_strip)] // Relies on str::strip_prefix(), MSRV 1.45
     if trimmed.starts_with("# ") {
         &trimmed[2..]
     } else if line.trim() == "#" {
