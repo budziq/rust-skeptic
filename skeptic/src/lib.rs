@@ -430,8 +430,9 @@ fn clean_omitted_line(line: &str) -> &str {
         line
     };
 
-    if let Some(trimmed) = trimmed.strip_prefix("# ") {
-        trimmed
+    #[allow(clippy::manual_strip)] // Relies on str::strip_prefix(), MSRV 1.45
+    if trimmed.starts_with("# ") {
+        &trimmed[2..]
     } else if line.trim() == "#" {
         // line consists of single "#" which might not be followed by newline on windows
         &trimmed[1..]
