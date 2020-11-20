@@ -430,8 +430,8 @@ fn clean_omitted_line(line: &str) -> &str {
         line
     };
 
-    if trimmed.starts_with("# ") {
-        &trimmed[2..]
+    if let Some(trimmed) = trimmed.strip_prefix("# ") {
+        trimmed
     } else if line.trim() == "#" {
         // line consists of single "#" which might not be followed by newline on windows
         &trimmed[1..]
