@@ -5,7 +5,7 @@ extern crate glob;
 extern crate pulldown_cmark as cmark;
 extern crate tempfile;
 
-use cmark::{Event, Parser, Tag};
+use crate::cmark::{Event, Parser, Tag};
 use std::collections::HashMap;
 use std::env;
 use std::fs::File;
