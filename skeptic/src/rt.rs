@@ -213,11 +213,11 @@ fn handle_test(
     test_text: &str,
     compile_type: CompileType,
 ) {
-    let outdir = tempfile::Builder::new()
+    let out_dir = tempfile::Builder::new()
         .prefix("rust-skeptic")
         .tempdir()
         .unwrap();
-    let testcase_path = outdir.path().join("test.rs");
+    let testcase_path = out_dir.path().join("test.rs");
     fs::write(&testcase_path, test_text.as_bytes()).unwrap();
 
     // OK, here's where a bunch of magic happens using assumptions
@@ -274,7 +274,7 @@ fn handle_test(
         ));
     }
 
-    let binary_path = outdir.path().join("out.exe");
+    let binary_path = out_dir.path().join("out.exe");
     match compile_type {
         CompileType::Full => cmd.arg("-o").arg(&binary_path),
         CompileType::Check => cmd.arg(format!(
@@ -290,7 +290,7 @@ fn handle_test(
     }
 
     let mut cmd = Command::new(binary_path);
-    cmd.current_dir(outdir.path());
+    cmd.current_dir(out_dir.path());
     interpret_output(cmd);
 }
 
