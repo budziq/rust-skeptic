@@ -157,6 +157,7 @@ struct DocTest {
 fn extract_tests(config: &Config) -> Result<DocTestSuite, IoError> {
     let mut doc_tests = Vec::new();
     for doc in &config.docs {
+        eprintln!("DOC {:?} ROOT {:?}", doc, config.root_dir);
         let path = &mut config.root_dir.clone();
         path.push(doc);
         let new_tests = extract_tests_from_file(path)?;
@@ -389,6 +390,7 @@ fn emit_tests(config: &Config, suite: DocTestSuite) -> Result<(), IoError> {
         for test in &doc_test.tests {
             let test_string = {
                 if let Some(ref t) = test.template {
+                    eprintln!("TEST {:?} TMPL {:?}", test.name, t);
                     let template = doc_test.templates.get(t).unwrap_or_else(|| {
                         panic!("template {} not found for {}", t, doc_test.path.display())
                     });
