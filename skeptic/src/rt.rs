@@ -130,13 +130,11 @@ fn interpret_output(mut command: Command) {
 
 // Retrieve the exact dependencies for a given build by
 // cross-referencing the lockfile with the fingerprint file
-fn get_rlib_dependencies<P: AsRef<Path>>(root_dir: P, target_dir: P) -> Result<Vec<Fingerprint>> {
-    let root_dir = root_dir.as_ref();
-    let target_dir = target_dir.as_ref();
+fn get_rlib_dependencies(root_dir: PathBuf, target_dir: PathBuf) -> Result<Vec<Fingerprint>> {
     let lock = LockedDeps::from_path(root_dir).or_else(|_| {
         // could not find Cargo.lock in $CARGO_MAINFEST_DIR
         // try relative to target_dir
-        let mut root_dir = PathBuf::from(target_dir);
+        let mut root_dir = target_dir.clone();
         root_dir.pop();
         root_dir.pop();
         LockedDeps::from_path(root_dir)
