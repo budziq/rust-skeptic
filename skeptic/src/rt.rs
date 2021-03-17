@@ -141,19 +141,6 @@ impl Fingerprint {
     }
 }
 
-fn get_edition<P: AsRef<Path>>(path: P) -> Result<String> {
-    let path = path.as_ref().join("Cargo.toml");
-    let metadata = get_cargo_meta(&path)?;
-    let edition = metadata
-        .packages
-        .iter()
-        .map(|package| &package.edition)
-        .max_by_key(|edition| u64::from_str(edition).unwrap())
-        .unwrap()
-        .clone();
-    Ok(edition)
-}
-
 // Retrieve the exact dependencies for a given build by
 // cross-referencing the lockfile with the fingerprint file
 fn get_rlib_dependencies<P: AsRef<Path>>(root_dir: P, target_dir: P) -> Result<Vec<Fingerprint>> {
@@ -204,10 +191,6 @@ fn get_rlib_dependencies<P: AsRef<Path>>(root_dir: P, target_dir: P) -> Result<V
         .collect())
 }
 
-fn temp_dir(prefix: &str) -> tempfile::TempDir {
-    tempfile::Builder::new().prefix(prefix).tempdir().unwrap()
-}
-
 pub fn compile_test(root_dir: &str, out_dir: &str, target_triple: &str, test_text: &str) {
     handle_test(
         root_dir,
@@ -236,7 +219,10 @@ fn handle_test(
     compile_type: CompileType,
 ) {
     let rustc = env::var("RUSTC").unwrap_or_else(|_| String::from("rustc"));
-    let outdir = temp_dir("rust-skeptic");
+    let outdir = tempfile::Builder::new()
+        .prefix("rust-skeptic")
+        .tempdir()
+        .unwrap();
     let testcase_path = outdir.path().join("test.rs");
     let binary_path = outdir.path().join("out.exe");
 
@@ -264,8 +250,18 @@ fn handle_test(
         .arg("--verbose")
         .arg("--crate-type=bin");
 
+    // Find the edition
+
     // This has to come before "-L".
-    let edition = get_edition(&root_dir).expect("failed to read Cargo.toml");
+    let metadata_path = root_dir.join("Cargo.toml");
+    let metadata = get_cargo_meta(&metadata_path).expect("failed to read Cargo.toml");
+    let edition = metadata
+        .packages
+        .iter()
+        .map(|package| &package.edition)
+        .max_by_key(|edition| u64::from_str(edition).unwrap())
+        .unwrap()
+        .clone();
     if edition != "2015" {
         cmd.arg(format!("--edition={}", edition));
     }
