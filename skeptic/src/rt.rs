@@ -11,181 +11,6 @@ use std::time::SystemTime;
 use error_chain::error_chain;
 use walkdir::WalkDir;
 
-error_chain! {
-    errors { Fingerprint }
-    foreign_links {
-        Io(std::io::Error);
-        Metadata(cargo_metadata::Error);
-    }
-}
-
-#[derive(Clone, Copy)]
-enum CompileType {
-    Full,
-    Check,
-}
-
-// An iterator over the root dependencies in a lockfile
-#[derive(Debug)]
-struct LockedDeps {
-    dependencies: Vec<String>,
-}
-
-fn get_cargo_meta<P: AsRef<Path> + std::convert::AsRef<std::ffi::OsStr>>(
-    path: P,
-) -> Result<cargo_metadata::Metadata> {
-    Ok(cargo_metadata::MetadataCommand::new()
-        .manifest_path(&path)
-        .exec()?)
-}
-
-impl LockedDeps {
-    fn from_path<P: AsRef<Path>>(path: P) -> Result<LockedDeps> {
-        let path = path.as_ref().join("Cargo.toml");
-        let metadata = get_cargo_meta(&path)?;
-        let workspace_members = metadata.workspace_members;
-        let deps = metadata
-            .resolve
-            .ok_or("Missing dependency metadata")?
-            .nodes
-            .into_iter()
-            .filter(|node| workspace_members.contains(&node.id))
-            .flat_map(|node| node.dependencies.into_iter())
-            .chain(workspace_members.clone());
-
-        Ok(LockedDeps {
-            dependencies: deps.map(|node| node.repr).collect(),
-        })
-    }
-}
-
-impl Iterator for LockedDeps {
-    type Item = (String, String);
-
-    fn next(&mut self) -> Option<(String, String)> {
-        self.dependencies.pop().and_then(|val| {
-            let mut it = val.split_whitespace();
-
-            match (it.next(), it.next()) {
-                (Some(name), Some(val)) => Some((name.replace("-", "_"), val.to_owned())),
-                _ => None,
-            }
-        })
-    }
-}
-
-#[derive(Debug)]
-struct Fingerprint {
-    libname: String,
-    version: Option<String>, // version might not be present on path or vcs deps
-    rlib: PathBuf,
-    mtime: SystemTime,
-}
-
-fn guess_ext(mut path: PathBuf, exts: &[&str]) -> Result<PathBuf> {
-    for ext in exts {
-        path.set_extension(ext);
-        if path.exists() {
-            return Ok(path);
-        }
-    }
-    Err(ErrorKind::Fingerprint.into())
-}
-
-impl Fingerprint {
-    fn from_path<P: AsRef<Path>>(path: P) -> Result<Fingerprint> {
-        let path = path.as_ref();
-
-        // Use the parent path to get libname and hash, replacing - with _
-        let mut captures = path
-            .parent()
-            .and_then(Path::file_stem)
-            .and_then(OsStr::to_str)
-            .ok_or(ErrorKind::Fingerprint)?
-            .rsplit('-');
-        let hash = captures.next().ok_or(ErrorKind::Fingerprint)?;
-        let mut libname_parts = captures.collect::<Vec<_>>();
-        libname_parts.reverse();
-        let libname = libname_parts.join("_");
-
-        path.extension()
-            .and_then(|e| if e == "json" { Some(e) } else { None })
-            .ok_or(ErrorKind::Fingerprint)?;
-
-        let mut rlib = PathBuf::from(path);
-        rlib.pop();
-        rlib.pop();
-        rlib.pop();
-        rlib.push(format!("deps/lib{}-{}", libname, hash));
-        rlib = guess_ext(rlib, &["rlib", "so", "dylib", "dll"])?;
-
-        Ok(Fingerprint {
-            libname,
-            version: None,
-            rlib,
-            mtime: fs::metadata(path)?.modified()?,
-        })
-    }
-
-    fn name(&self) -> String {
-        self.libname.clone()
-    }
-
-    fn version(&self) -> Option<String> {
-        self.version.clone()
-    }
-}
-
-// Retrieve the exact dependencies for a given build by
-// cross-referencing the lockfile with the fingerprint file
-fn get_rlib_dependencies<P: AsRef<Path>>(root_dir: P, target_dir: P) -> Result<Vec<Fingerprint>> {
-    let root_dir = root_dir.as_ref();
-    let target_dir = target_dir.as_ref();
-    let lock = LockedDeps::from_path(root_dir).or_else(|_| {
-        // could not find Cargo.lock in $CARGO_MAINFEST_DIR
-        // try relative to target_dir
-        let mut root_dir = PathBuf::from(target_dir);
-        root_dir.pop();
-        root_dir.pop();
-        LockedDeps::from_path(root_dir)
-    })?;
-
-    let fingerprint_dir = target_dir.join(".fingerprint/");
-    let locked_deps: HashMap<String, String> = lock.collect();
-    let mut found_deps: HashMap<String, Fingerprint> = HashMap::new();
-
-    for finger in WalkDir::new(fingerprint_dir)
-        .into_iter()
-        .filter_map(|v| v.ok())
-        .filter_map(|v| Fingerprint::from_path(v.path()).ok())
-    {
-        if let Some(locked_ver) = locked_deps.get(&finger.name()) {
-            // TODO this should be refactored to something more readable
-            match (found_deps.entry(finger.name()), finger.version()) {
-                (Entry::Occupied(mut e), Some(ver)) => {
-                    // we find better match only if it is exact version match
-                    // and has fresher build time
-                    if *locked_ver == ver && e.get().mtime < finger.mtime {
-                        e.insert(finger);
-                    }
-                }
-                (Entry::Vacant(e), ver) => {
-                    // we see an exact match or unversioned version
-                    if ver.unwrap_or_else(|| locked_ver.clone()) == *locked_ver {
-                        e.insert(finger);
-                    }
-                }
-                _ => (),
-            }
-        }
-    }
-
-    Ok(found_deps
-        .into_iter()
-        .filter_map(|(_, val)| if val.rlib.exists() { Some(val) } else { None })
-        .collect())
-}
-
 pub fn compile_test(root_dir: &str, out_dir: &str, target_triple: &str, test_text: &str) {
     handle_test(
         root_dir,
@@ -301,4 +126,179 @@ fn interpret_output(mut command: Command) {
     if !output.status.success() {
         panic!("Command failed:\n{:?}", command);
     }
+}
+
+// Retrieve the exact dependencies for a given build by
+// cross-referencing the lockfile with the fingerprint file
+fn get_rlib_dependencies<P: AsRef<Path>>(root_dir: P, target_dir: P) -> Result<Vec<Fingerprint>> {
+    let root_dir = root_dir.as_ref();
+    let target_dir = target_dir.as_ref();
+    let lock = LockedDeps::from_path(root_dir).or_else(|_| {
+        // could not find Cargo.lock in $CARGO_MAINFEST_DIR
+        // try relative to target_dir
+        let mut root_dir = PathBuf::from(target_dir);
+        root_dir.pop();
+        root_dir.pop();
+        LockedDeps::from_path(root_dir)
+    })?;
+
+    let fingerprint_dir = target_dir.join(".fingerprint/");
+    let locked_deps: HashMap<String, String> = lock.collect();
+    let mut found_deps: HashMap<String, Fingerprint> = HashMap::new();
+
+    for finger in WalkDir::new(fingerprint_dir)
+        .into_iter()
+        .filter_map(|v| v.ok())
+        .filter_map(|v| Fingerprint::from_path(v.path()).ok())
+    {
+        if let Some(locked_ver) = locked_deps.get(&finger.name()) {
+            // TODO this should be refactored to something more readable
+            match (found_deps.entry(finger.name()), finger.version()) {
+                (Entry::Occupied(mut e), Some(ver)) => {
+                    // we find better match only if it is exact version match
+                    // and has fresher build time
+                    if *locked_ver == ver && e.get().mtime < finger.mtime {
+                        e.insert(finger);
+                    }
+                }
+                (Entry::Vacant(e), ver) => {
+                    // we see an exact match or unversioned version
+                    if ver.unwrap_or_else(|| locked_ver.clone()) == *locked_ver {
+                        e.insert(finger);
+                    }
+                }
+                _ => (),
+            }
+        }
+    }
+
+    Ok(found_deps
+        .into_iter()
+        .filter_map(|(_, val)| if val.rlib.exists() { Some(val) } else { None })
+        .collect())
+}
+
+// An iterator over the root dependencies in a lockfile
+#[derive(Debug)]
+struct LockedDeps {
+    dependencies: Vec<String>,
+}
+
+fn get_cargo_meta<P: AsRef<Path> + std::convert::AsRef<std::ffi::OsStr>>(
+    path: P,
+) -> Result<cargo_metadata::Metadata> {
+    Ok(cargo_metadata::MetadataCommand::new()
+        .manifest_path(&path)
+        .exec()?)
+}
+
+impl LockedDeps {
+    fn from_path<P: AsRef<Path>>(path: P) -> Result<LockedDeps> {
+        let path = path.as_ref().join("Cargo.toml");
+        let metadata = get_cargo_meta(&path)?;
+        let workspace_members = metadata.workspace_members;
+        let deps = metadata
+            .resolve
+            .ok_or("Missing dependency metadata")?
+            .nodes
+            .into_iter()
+            .filter(|node| workspace_members.contains(&node.id))
+            .flat_map(|node| node.dependencies.into_iter())
+            .chain(workspace_members.clone());
+
+        Ok(LockedDeps {
+            dependencies: deps.map(|node| node.repr).collect(),
+        })
+    }
+}
+
+impl Iterator for LockedDeps {
+    type Item = (String, String);
+
+    fn next(&mut self) -> Option<(String, String)> {
+        self.dependencies.pop().and_then(|val| {
+            let mut it = val.split_whitespace();
+
+            match (it.next(), it.next()) {
+                (Some(name), Some(val)) => Some((name.replace("-", "_"), val.to_owned())),
+                _ => None,
+            }
+        })
+    }
+}
+
+#[derive(Debug)]
+struct Fingerprint {
+    libname: String,
+    version: Option<String>, // version might not be present on path or vcs deps
+    rlib: PathBuf,
+    mtime: SystemTime,
+}
+
+fn guess_ext(mut path: PathBuf, exts: &[&str]) -> Result<PathBuf> {
+    for ext in exts {
+        path.set_extension(ext);
+        if path.exists() {
+            return Ok(path);
+        }
+    }
+    Err(ErrorKind::Fingerprint.into())
+}
+
+impl Fingerprint {
+    fn from_path<P: AsRef<Path>>(path: P) -> Result<Fingerprint> {
+        let path = path.as_ref();
+
+        // Use the parent path to get libname and hash, replacing - with _
+        let mut captures = path
+            .parent()
+            .and_then(Path::file_stem)
+            .and_then(OsStr::to_str)
+            .ok_or(ErrorKind::Fingerprint)?
+            .rsplit('-');
+        let hash = captures.next().ok_or(ErrorKind::Fingerprint)?;
+        let mut libname_parts = captures.collect::<Vec<_>>();
+        libname_parts.reverse();
+        let libname = libname_parts.join("_");
+
+        path.extension()
+            .and_then(|e| if e == "json" { Some(e) } else { None })
+            .ok_or(ErrorKind::Fingerprint)?;
+
+        let mut rlib = PathBuf::from(path);
+        rlib.pop();
+        rlib.pop();
+        rlib.pop();
+        rlib.push(format!("deps/lib{}-{}", libname, hash));
+        rlib = guess_ext(rlib, &["rlib", "so", "dylib", "dll"])?;
+
+        Ok(Fingerprint {
+            libname,
+            version: None,
+            rlib,
+            mtime: fs::metadata(path)?.modified()?,
+        })
+    }
+
+    fn name(&self) -> String {
+        self.libname.clone()
+    }
+
+    fn version(&self) -> Option<String> {
+        self.version.clone()
+    }
+}
+
+error_chain! {
+    errors { Fingerprint }
+    foreign_links {
+        Io(std::io::Error);
+        Metadata(cargo_metadata::Error);
+    }
+}
+
+#[derive(Clone, Copy)]
+enum CompileType {
+    Full,
+    Check,
 }
