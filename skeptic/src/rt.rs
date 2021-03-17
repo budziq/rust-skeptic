@@ -213,14 +213,12 @@ fn handle_test(
     test_text: &str,
     compile_type: CompileType,
 ) {
-    let rustc = env::var("RUSTC").unwrap_or_else(|_| String::from("rustc"));
     let outdir = tempfile::Builder::new()
         .prefix("rust-skeptic")
         .tempdir()
         .unwrap();
     let testcase_path = outdir.path().join("test.rs");
     fs::write(&testcase_path, test_text.as_bytes()).unwrap();
-    let binary_path = outdir.path().join("out.exe");
 
     // OK, here's where a bunch of magic happens using assumptions
     // about cargo internals. We are going to use rustc to compile
@@ -238,6 +236,7 @@ fn handle_test(
     let mut deps_dir = target_dir.clone();
     deps_dir.push("deps");
 
+    let rustc = env::var("RUSTC").unwrap_or_else(|_| String::from("rustc"));
     let mut cmd = Command::new(rustc);
     cmd.arg(testcase_path)
         .arg("--verbose")
@@ -275,6 +274,7 @@ fn handle_test(
         ));
     }
 
+    let binary_path = outdir.path().join("out.exe");
     match compile_type {
         CompileType::Full => cmd.arg("-o").arg(&binary_path),
         CompileType::Check => cmd.arg(format!(
