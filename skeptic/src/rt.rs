@@ -2,8 +2,7 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::env;
 use std::ffi::OsStr;
-use std::fs::{self, File};
-use std::io::Write;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::str::FromStr;
@@ -220,10 +219,8 @@ fn handle_test(
         .tempdir()
         .unwrap();
     let testcase_path = outdir.path().join("test.rs");
+    fs::write(&testcase_path, test_text.as_bytes()).unwrap();
     let binary_path = outdir.path().join("out.exe");
-
-    let mut file = File::create(&testcase_path).unwrap();
-    file.write_all(test_text.as_bytes()).unwrap();
 
     // OK, here's where a bunch of magic happens using assumptions
     // about cargo internals. We are going to use rustc to compile
