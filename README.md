@@ -1,6 +1,6 @@
 # Be a Rust Documentation Skeptic
 
-[![Build status](https://github.com/budziq/rust-skeptic/workflows/CI/badge.svg)](https://github.com/budziq/skeptic/actions?query=workflow%3ACI)
+[![Build status](https://github.com/budziq/rust-skeptic/workflows/CI/badge.svg)](https://github.com/budziq/rust-skeptic/actions?query=workflow%3ACI)
 [![crates.io](https://img.shields.io/crates/v/skeptic.svg)](https://crates.io/crates/skeptic)
 [![Documentation](https://docs.rs/skeptic/badge.svg)](https://docs.rs/skeptic)
 
