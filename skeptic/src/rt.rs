@@ -146,8 +146,7 @@ fn get_rlib_dependencies(root_dir: PathBuf, target_dir: PathBuf) -> Result<Vec<F
 
     for finger in WalkDir::new(fingerprint_dir)
         .into_iter()
-        .filter_map(|v| v.ok())
-        .filter_map(|v| Fingerprint::from_path(v.path()).ok())
+        .filter_map(|v| Fingerprint::from_path(v.ok()?.path()).ok())
     {
         if let Some(locked_ver) = locked_deps.get(&finger.name()) {
             // TODO this should be refactored to something more readable
