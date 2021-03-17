@@ -86,7 +86,7 @@ fn line_numbers_displayed_are_for_the_beginning_of_each_code_block() {
     let test_names: Vec<String> = tests
         .0
         .into_iter()
-        .map(|test| get_line_number_from_test_name(test))
+        .map(get_line_number_from_test_name)
         .collect();
 
     assert_eq!(test_names, vec!["3", "11"]);
@@ -130,7 +130,7 @@ fn line_numbers_displayed_are_for_the_beginning_of_each_section() {
     let test_names: Vec<String> = tests
         .0
         .into_iter()
-        .map(|test| get_line_number_from_test_name(test))
+        .map(get_line_number_from_test_name)
         .collect();
 
     assert_eq!(test_names, vec!["3", "12", "21"]);
