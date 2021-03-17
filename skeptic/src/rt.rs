@@ -234,41 +234,16 @@ fn compile(
     out_dir: &str,
     target_triple: &str,
     test_text: &str,
-    ty: CompileType,
+    compile_type: CompileType,
 ) -> (PathBuf, TempDir) {
     let rustc = env::var("RUSTC").unwrap_or_else(|_| String::from("rustc"));
     let outdir = temp_dir("rust-skeptic");
     let testcase_path = outdir.path().join("test.rs");
     let binary_path = outdir.path().join("out.exe");
 
-    write_test_case(&testcase_path, test_text);
-    compile_test_case(
-        &testcase_path,
-        &binary_path,
-        &rustc,
-        root_dir,
-        out_dir,
-        target_triple,
-        ty,
-    );
-
-    (binary_path, outdir)
-}
-
-fn write_test_case(path: &Path, test_text: &str) {
-    let mut file = File::create(path).unwrap();
+    let mut file = File::create(&testcase_path).unwrap();
     file.write_all(test_text.as_bytes()).unwrap();
-}
 
-fn compile_test_case(
-    in_path: &Path,
-    out_path: &Path,
-    rustc: &str,
-    root_dir: &str,
-    out_dir: &str,
-    target_triple: &str,
-    compile_type: CompileType,
-) {
     // OK, here's where a bunch of magic happens using assumptions
     // about cargo internals. We are going to use rustc to compile
     // the examples, but to do that we've got to tell it where to
@@ -286,7 +261,9 @@ fn compile_test_case(
     deps_dir.push("deps");
 
     let mut cmd = Command::new(rustc);
-    cmd.arg(in_path).arg("--verbose").arg("--crate-type=bin");
+    cmd.arg(testcase_path)
+        .arg("--verbose")
+        .arg("--crate-type=bin");
 
     // This has to come before "-L".
     let edition = get_edition(&root_dir).expect("failed to read Cargo.toml");
@@ -311,14 +288,16 @@ fn compile_test_case(
     }
 
     match compile_type {
-        CompileType::Full => cmd.arg("-o").arg(out_path),
+        CompileType::Full => cmd.arg("-o").arg(&binary_path),
         CompileType::Check => cmd.arg(format!(
             "--emit=dep-info={0}.d,metadata={0}.m",
-            out_path.display()
+            binary_path.display()
         )),
     };
 
     interpret_output(cmd);
+
+    (binary_path, outdir)
 }
 
 fn run_test_case(program_path: &Path, outdir: &Path) {
