@@ -209,16 +209,16 @@ fn temp_dir(prefix: &str) -> tempfile::TempDir {
 }
 
 pub fn compile_test(root_dir: &str, out_dir: &str, target_triple: &str, test_text: &str) {
-    let rustc = &env::var("RUSTC").unwrap_or_else(|_| String::from("rustc"));
-    let outdir = &temp_dir("rust-skeptic");
-    let testcase_path = &outdir.path().join("test.rs");
-    let binary_path = &outdir.path().join("out.exe");
+    let rustc = env::var("RUSTC").unwrap_or_else(|_| String::from("rustc"));
+    let outdir = temp_dir("rust-skeptic");
+    let testcase_path = outdir.path().join("test.rs");
+    let binary_path = outdir.path().join("out.exe");
 
-    write_test_case(testcase_path, test_text);
+    write_test_case(&testcase_path, test_text);
     compile_test_case(
-        testcase_path,
-        binary_path,
-        rustc,
+        &testcase_path,
+        &binary_path,
+        &rustc,
         root_dir,
         out_dir,
         target_triple,
@@ -227,22 +227,22 @@ pub fn compile_test(root_dir: &str, out_dir: &str, target_triple: &str, test_tex
 }
 
 pub fn run_test(root_dir: &str, out_dir: &str, target_triple: &str, test_text: &str) {
-    let rustc = &env::var("RUSTC").unwrap_or_else(|_| String::from("rustc"));
-    let outdir = &temp_dir("rust-skeptic");
-    let testcase_path = &outdir.path().join("test.rs");
-    let binary_path = &outdir.path().join("out.exe");
+    let rustc = env::var("RUSTC").unwrap_or_else(|_| String::from("rustc"));
+    let outdir = temp_dir("rust-skeptic");
+    let testcase_path = outdir.path().join("test.rs");
+    let binary_path = outdir.path().join("out.exe");
 
-    write_test_case(testcase_path, test_text);
+    write_test_case(&testcase_path, test_text);
     compile_test_case(
-        testcase_path,
-        binary_path,
-        rustc,
+        &testcase_path,
+        &binary_path,
+        &rustc,
         root_dir,
         out_dir,
         target_triple,
         CompileType::Full,
     );
-    run_test_case(binary_path, outdir.path());
+    run_test_case(&binary_path, outdir.path());
 }
 
 fn write_test_case(path: &Path, test_text: &str) {
