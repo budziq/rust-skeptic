@@ -2,7 +2,7 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::env;
 use std::ffi::OsStr;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -120,14 +120,11 @@ impl Fingerprint {
         rlib.push(format!("deps/lib{}-{}", libname, hash));
         rlib = guess_ext(rlib, &["rlib", "so", "dylib", "dll"])?;
 
-        let file = File::open(path)?;
-        let mtime = file.metadata()?.modified()?;
-
         Ok(Fingerprint {
             libname,
             version: None,
             rlib,
-            mtime,
+            mtime: fs::metadata(path)?.modified()?,
         })
     }
 
