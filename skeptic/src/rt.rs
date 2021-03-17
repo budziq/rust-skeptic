@@ -208,7 +208,7 @@ pub fn run_test(root_dir: &str, out_dir: &str, target_triple: &str, test_text: &
 
 fn handle_test(
     root_dir: &str,
-    out_dir: &str,
+    target_dir: &str,
     target_triple: &str,
     test_text: &str,
     compile_type: CompileType,
@@ -229,7 +229,7 @@ fn handle_test(
     // up in the fingerprint file.
 
     let root_dir = PathBuf::from(root_dir);
-    let mut target_dir = PathBuf::from(out_dir);
+    let mut target_dir = PathBuf::from(target_dir);
     target_dir.pop();
     target_dir.pop();
     target_dir.pop();
