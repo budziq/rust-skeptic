@@ -34,17 +34,17 @@ struct LockedDeps {
 }
 
 fn get_cargo_meta<P: AsRef<Path> + std::convert::AsRef<std::ffi::OsStr>>(
-    pth: P,
+    path: P,
 ) -> Result<cargo_metadata::Metadata> {
     Ok(cargo_metadata::MetadataCommand::new()
-        .manifest_path(&pth)
+        .manifest_path(&path)
         .exec()?)
 }
 
 impl LockedDeps {
-    fn from_path<P: AsRef<Path>>(pth: P) -> Result<LockedDeps> {
-        let pth = pth.as_ref().join("Cargo.toml");
-        let metadata = get_cargo_meta(&pth)?;
+    fn from_path<P: AsRef<Path>>(path: P) -> Result<LockedDeps> {
+        let path = path.as_ref().join("Cargo.toml");
+        let metadata = get_cargo_meta(&path)?;
         let workspace_members = metadata.workspace_members;
         let deps = metadata
             .resolve
@@ -84,22 +84,22 @@ struct Fingerprint {
     mtime: SystemTime,
 }
 
-fn guess_ext(mut pth: PathBuf, exts: &[&str]) -> Result<PathBuf> {
+fn guess_ext(mut path: PathBuf, exts: &[&str]) -> Result<PathBuf> {
     for ext in exts {
-        pth.set_extension(ext);
-        if pth.exists() {
-            return Ok(pth);
+        path.set_extension(ext);
+        if path.exists() {
+            return Ok(path);
         }
     }
     Err(ErrorKind::Fingerprint.into())
 }
 
 impl Fingerprint {
-    fn from_path<P: AsRef<Path>>(pth: P) -> Result<Fingerprint> {
-        let pth = pth.as_ref();
+    fn from_path<P: AsRef<Path>>(path: P) -> Result<Fingerprint> {
+        let path = path.as_ref();
 
         // Use the parent path to get libname and hash, replacing - with _
-        let mut captures = pth
+        let mut captures = path
             .parent()
             .and_then(Path::file_stem)
             .and_then(OsStr::to_str)
@@ -110,18 +110,18 @@ impl Fingerprint {
         libname_parts.reverse();
         let libname = libname_parts.join("_");
 
-        pth.extension()
+        path.extension()
             .and_then(|e| if e == "json" { Some(e) } else { None })
             .ok_or(ErrorKind::Fingerprint)?;
 
-        let mut rlib = PathBuf::from(pth);
+        let mut rlib = PathBuf::from(path);
         rlib.pop();
         rlib.pop();
         rlib.pop();
         rlib.push(format!("deps/lib{}-{}", libname, hash));
         rlib = guess_ext(rlib, &["rlib", "so", "dylib", "dll"])?;
 
-        let file = File::open(pth)?;
+        let file = File::open(path)?;
         let mtime = file.metadata()?.modified()?;
 
         Ok(Fingerprint {
