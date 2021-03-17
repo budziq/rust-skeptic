@@ -10,7 +10,7 @@ use std::str::FromStr;
 use std::time::SystemTime;
 
 use error_chain::error_chain;
-use tempfile::{self, TempDir};
+use tempfile;
 use walkdir::WalkDir;
 
 error_chain! {
@@ -209,7 +209,7 @@ fn temp_dir(prefix: &str) -> tempfile::TempDir {
 }
 
 pub fn compile_test(root_dir: &str, out_dir: &str, target_triple: &str, test_text: &str) {
-    compile(
+    handle_test(
         root_dir,
         out_dir,
         target_triple,
@@ -219,23 +219,22 @@ pub fn compile_test(root_dir: &str, out_dir: &str, target_triple: &str, test_tex
 }
 
 pub fn run_test(root_dir: &str, out_dir: &str, target_triple: &str, test_text: &str) {
-    let (binary_path, outdir) = compile(
+    handle_test(
         root_dir,
         out_dir,
         target_triple,
         test_text,
         CompileType::Full,
     );
-    run_test_case(&binary_path, outdir.path());
 }
 
-fn compile(
+fn handle_test(
     root_dir: &str,
     out_dir: &str,
     target_triple: &str,
     test_text: &str,
     compile_type: CompileType,
-) -> (PathBuf, TempDir) {
+) {
     let rustc = env::var("RUSTC").unwrap_or_else(|_| String::from("rustc"));
     let outdir = temp_dir("rust-skeptic");
     let testcase_path = outdir.path().join("test.rs");
@@ -297,12 +296,12 @@ fn compile(
 
     interpret_output(cmd);
 
-    (binary_path, outdir)
-}
+    if let CompileType::Check = compile_type {
+        return;
+    }
 
-fn run_test_case(program_path: &Path, outdir: &Path) {
-    let mut cmd = Command::new(program_path);
-    cmd.current_dir(outdir);
+    let mut cmd = Command::new(binary_path);
+    cmd.current_dir(outdir.path());
     interpret_output(cmd);
 }
 
