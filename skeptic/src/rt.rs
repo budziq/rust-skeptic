@@ -10,7 +10,7 @@ use std::str::FromStr;
 use std::time::SystemTime;
 
 use error_chain::error_chain;
-use tempfile;
+use tempfile::{self, TempDir};
 use walkdir::WalkDir;
 
 error_chain! {
@@ -209,24 +209,33 @@ fn temp_dir(prefix: &str) -> tempfile::TempDir {
 }
 
 pub fn compile_test(root_dir: &str, out_dir: &str, target_triple: &str, test_text: &str) {
-    let rustc = env::var("RUSTC").unwrap_or_else(|_| String::from("rustc"));
-    let outdir = temp_dir("rust-skeptic");
-    let testcase_path = outdir.path().join("test.rs");
-    let binary_path = outdir.path().join("out.exe");
-
-    write_test_case(&testcase_path, test_text);
-    compile_test_case(
-        &testcase_path,
-        &binary_path,
-        &rustc,
+    compile(
         root_dir,
         out_dir,
         target_triple,
+        test_text,
         CompileType::Check,
     );
 }
 
 pub fn run_test(root_dir: &str, out_dir: &str, target_triple: &str, test_text: &str) {
+    let (binary_path, outdir) = compile(
+        root_dir,
+        out_dir,
+        target_triple,
+        test_text,
+        CompileType::Full,
+    );
+    run_test_case(&binary_path, outdir.path());
+}
+
+fn compile(
+    root_dir: &str,
+    out_dir: &str,
+    target_triple: &str,
+    test_text: &str,
+    ty: CompileType,
+) -> (PathBuf, TempDir) {
     let rustc = env::var("RUSTC").unwrap_or_else(|_| String::from("rustc"));
     let outdir = temp_dir("rust-skeptic");
     let testcase_path = outdir.path().join("test.rs");
@@ -240,9 +249,10 @@ pub fn run_test(root_dir: &str, out_dir: &str, target_triple: &str, test_text: &
         root_dir,
         out_dir,
         target_triple,
-        CompileType::Full,
+        ty,
     );
-    run_test_case(&binary_path, outdir.path());
+
+    (binary_path, outdir)
 }
 
 fn write_test_case(path: &Path, test_text: &str) {
