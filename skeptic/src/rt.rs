@@ -148,24 +148,27 @@ fn get_rlib_dependencies(root_dir: PathBuf, target_dir: PathBuf) -> Result<Vec<F
         .into_iter()
         .filter_map(|v| Fingerprint::from_path(v.ok()?.path()).ok())
     {
-        if let Some(locked_ver) = locked_deps.get(&finger.name()) {
-            // TODO this should be refactored to something more readable
-            match (found_deps.entry(finger.name()), finger.version()) {
-                (Entry::Occupied(mut e), Some(ver)) => {
-                    // we find better match only if it is exact version match
-                    // and has fresher build time
-                    if *locked_ver == ver && e.get().mtime < finger.mtime {
-                        e.insert(finger);
-                    }
+        let locked_ver = match locked_deps.get(&finger.name()) {
+            Some(ver) => ver,
+            None => continue,
+        };
+
+        // TODO this should be refactored to something more readable
+        match (found_deps.entry(finger.name()), finger.version()) {
+            (Entry::Occupied(mut e), Some(ver)) => {
+                // we find better match only if it is exact version match
+                // and has fresher build time
+                if *locked_ver == ver && e.get().mtime < finger.mtime {
+                    e.insert(finger);
                 }
-                (Entry::Vacant(e), ver) => {
-                    // we see an exact match or unversioned version
-                    if ver.unwrap_or_else(|| locked_ver.clone()) == *locked_ver {
-                        e.insert(finger);
-                    }
-                }
-                _ => (),
             }
+            (Entry::Vacant(e), ver) => {
+                // we see an exact match or unversioned version
+                if ver.unwrap_or_else(|| locked_ver.clone()) == *locked_ver {
+                    e.insert(finger);
+                }
+            }
+            _ => (),
         }
     }
 
