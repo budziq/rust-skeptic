@@ -216,14 +216,11 @@ impl Iterator for LockedDeps {
     type Item = (String, String);
 
     fn next(&mut self) -> Option<(String, String)> {
-        self.dependencies.pop().and_then(|val| {
-            let mut it = val.split_whitespace();
-
-            match (it.next(), it.next()) {
-                (Some(name), Some(val)) => Some((name.replace("-", "_"), val.to_owned())),
-                _ => None,
-            }
-        })
+        let dep = self.dependencies.pop()?;
+        let mut parts = dep.split_whitespace();
+        let name = parts.next()?;
+        let val = parts.next()?;
+        Some((name.replace("-", "_"), val.to_owned()))
     }
 }
 
