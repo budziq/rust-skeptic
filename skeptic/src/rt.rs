@@ -10,7 +10,6 @@ use std::str::FromStr;
 use std::time::SystemTime;
 
 use error_chain::error_chain;
-use tempfile;
 use walkdir::WalkDir;
 
 error_chain! {
