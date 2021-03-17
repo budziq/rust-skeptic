@@ -1,17 +1,11 @@
-#[macro_use]
-extern crate error_chain;
-extern crate bytecount;
-extern crate glob;
-extern crate pulldown_cmark as cmark;
-extern crate tempfile;
-
-use crate::cmark::{Event, Parser, Tag};
 use std::collections::HashMap;
 use std::env;
 use std::fs::File;
 use std::io::{self, Error as IoError, Read, Write};
 use std::mem;
 use std::path::{Path, PathBuf};
+
+use pulldown_cmark::{Event, Parser, Tag};
 
 pub mod rt;
 #[cfg(test)]

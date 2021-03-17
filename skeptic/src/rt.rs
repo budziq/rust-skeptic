@@ -1,20 +1,17 @@
-extern crate cargo_metadata;
-extern crate walkdir;
-
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::time::SystemTime;
-
+use std::env;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::str::FromStr;
-use std::{self, env};
-use tempfile;
+use std::time::SystemTime;
 
-use self::walkdir::WalkDir;
+use error_chain::error_chain;
+use tempfile;
+use walkdir::WalkDir;
 
 error_chain! {
     errors { Fingerprint }

@@ -1,6 +1,5 @@
-extern crate unindent;
+use unindent::unindent;
 
-use self::unindent::unindent;
 use super::*;
 
 #[test]
