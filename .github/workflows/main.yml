@@ -46,7 +46,8 @@ jobs:
         with:
           profile: minimal
           toolchain: stable
-      - run: git clone -b skeptic-test https://github.com/djc/rust-cookbook &&
+      - run: cd .. &&
+          git clone -b skeptic-test https://github.com/djc/rust-cookbook &&
           cd rust-cookbook &&
           cargo test
 
