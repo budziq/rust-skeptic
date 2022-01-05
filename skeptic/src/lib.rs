@@ -5,7 +5,7 @@ use std::io::{self, Error as IoError, Read, Write};
 use std::mem;
 use std::path::{Path, PathBuf};
 
-use pulldown_cmark::{CodeBlockKind, Event, Parser, Tag};
+use pulldown_cmark::{CodeBlockKind, Event, Parser, Tag, HeadingLevel};
 
 pub mod rt;
 #[cfg(test)]
@@ -202,10 +202,10 @@ fn extract_tests_from_string(s: &str, file_stem: &str) -> (Vec<Test>, Option<Str
     for (event, range) in parser.into_offset_iter() {
         let line_number = bytecount::count(&s.as_bytes()[0..range.start], b'\n');
         match event {
-            Event::Start(Tag::Heading(level)) if level < 3 => {
+            Event::Start(Tag::Heading(level, ..)) if level < HeadingLevel::H3 => {
                 buffer = Buffer::Heading(String::new());
             }
-            Event::End(Tag::Heading(level)) if level < 3 => {
+            Event::End(Tag::Heading(level, ..)) if level < HeadingLevel::H3 => {
                 let cur_buffer = mem::replace(&mut buffer, Buffer::None);
                 if let Buffer::Heading(sect) = cur_buffer {
                     section = Some(sanitize_test_name(&sect));
