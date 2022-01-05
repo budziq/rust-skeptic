@@ -5,7 +5,7 @@ use std::io::{self, Error as IoError, Read, Write};
 use std::mem;
 use std::path::{Path, PathBuf};
 
-use pulldown_cmark::{CodeBlockKind, Event, Parser, Tag, HeadingLevel};
+use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Parser, Tag};
 
 pub mod rt;
 #[cfg(test)]
