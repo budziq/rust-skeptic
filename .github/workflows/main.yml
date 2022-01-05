@@ -17,11 +17,11 @@ jobs:
           - os: macos-latest
             rust: beta
           - os: macos-latest
-            rust: 1.41.1
+            rust: 1.46.0
           - os: windows-latest
             rust: beta
           - os: windows-latest
-            rust: 1.41.1
+            rust: 1.46.0
 
     runs-on: ${{ matrix.os }}
 
