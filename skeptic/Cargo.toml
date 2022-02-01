@@ -1,6 +1,4 @@
 [package]
-authors = ["Brian Anderson <banderson@mozilla.com>",
-           "Michał Budzyński <budziq@gmail.com>"]
 description = "Test your Rust markdown documentation via Cargo"
 license = "MIT/Apache-2.0"
 name = "skeptic"
