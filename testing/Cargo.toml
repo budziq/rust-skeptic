@@ -17,3 +17,8 @@ path = "../skeptic"
 # It is not needed for normal uses of Skeptic.
 [dependencies.skeptic]
 path = "../skeptic"
+
+[dependencies.derive_more]
+version = "0.99"
+default_features = false
+features = ["from"]

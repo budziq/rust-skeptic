@@ -1,9 +1,10 @@
 Rust code that includes a "`#`" should be tested by skeptic without error.
 
 ```rust
+#[derive(derive_more::From)]
 struct Person<'a>(&'a str);
 fn main() {
-  let _ = Person("#bors");
+  let _ = Person::from("#bors");
 }
 ```
 
