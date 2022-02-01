@@ -269,8 +269,7 @@ impl Fingerprint {
         let mut dll = rlib.clone();
         rlib.push(format!("deps/lib{}-{}", libname, hash));
         dll.push(format!("deps/{}-{}", libname, hash));
-        rlib = guess_ext(rlib, &["rlib", "so", "dylib"])
-            .or_else(|_| guess_ext(dll, &["dll"]))?;
+        rlib = guess_ext(rlib, &["rlib", "so", "dylib"]).or_else(|_| guess_ext(dll, &["dll"]))?;
 
         Ok(Fingerprint {
             libname,
