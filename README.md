@@ -76,7 +76,7 @@ Rust Skeptic is not based on rustdoc. It behaves similarly in many
 cases, but not all. Here's the lowdown on the Skeptic system.
 
 *Note: [this `README.md` file itself is tested by Rust
-Skeptic](https://github.com/budziq/rust-skeptic/blob/master/build.rs).
+Skeptic](/testing/build.rs).
 Because it is illustrating how to use markdown syntax, the markup on
 this document itself is funky, and so is the output below,
 particularly when illustrating Markdown's code fences
