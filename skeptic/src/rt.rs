@@ -220,7 +220,7 @@ impl Iterator for LockedDeps {
         let mut parts = dep.split_whitespace();
         let name = parts.next()?;
         let val = parts.next()?;
-        Some((name.replace("-", "_"), val.to_owned()))
+        Some((name.replace('-', "_"), val.to_owned()))
     }
 }
 
