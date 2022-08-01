@@ -5,10 +5,10 @@ use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::str::FromStr;
 use std::time::SystemTime;
 
 use error_chain::error_chain;
+use cargo_metadata::Edition;
 use walkdir::WalkDir;
 
 pub fn compile_test(root_dir: &str, out_dir: &str, target_triple: &str, test_text: &str) {
@@ -75,8 +75,8 @@ fn handle_test(
     let edition = metadata
         .packages
         .iter()
-        .map(|package| &package.edition)
-        .max_by_key(|edition| u64::from_str(edition).unwrap())
+        .filter_map(|package| edition_str(&package.edition))
+        .max()
         .unwrap()
         .clone();
     if edition != "2015" {
@@ -300,4 +300,13 @@ error_chain! {
 enum CompileType {
     Full,
     Check,
+}
+
+fn edition_str(edition: &Edition) -> Option<&'static str> {
+    Some(match edition {
+        Edition::E2015 => "2015",
+        Edition::E2018 => "2018",
+        Edition::E2021 => "2021",
+        _ => return None,
+    })
 }
