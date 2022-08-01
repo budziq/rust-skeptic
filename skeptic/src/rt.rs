@@ -7,8 +7,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::SystemTime;
 
-use error_chain::error_chain;
 use cargo_metadata::Edition;
+use error_chain::error_chain;
 use walkdir::WalkDir;
 
 pub fn compile_test(root_dir: &str, out_dir: &str, target_triple: &str, test_text: &str) {
