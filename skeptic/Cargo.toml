@@ -9,7 +9,8 @@ homepage = "https://github.com/budziq/rust-skeptic"
 documentation = "https://docs.rs/skeptic"
 keywords = ["markdown", "documentation", "testing"]
 categories = ["development-tools", "development-tools::testing"]
-edition = "2018"
+edition = "2021"
+rust-version = "1.56"
 
 [dependencies]
 bytecount = "0.6"
