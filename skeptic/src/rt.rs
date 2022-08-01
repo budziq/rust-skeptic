@@ -77,8 +77,7 @@ fn handle_test(
         .iter()
         .filter_map(|package| edition_str(&package.edition))
         .max()
-        .unwrap()
-        .clone();
+        .unwrap();
     if edition != "2015" {
         cmd.arg(format!("--edition={}", edition));
     }
