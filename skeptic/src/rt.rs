@@ -87,7 +87,7 @@ fn handle_test(
         .arg("-L")
         .arg(&deps_dir)
         .arg("--target")
-        .arg(&target_triple);
+        .arg(target_triple);
 
     for dep in get_rlib_dependencies(root_dir, target_dir).expect("failed to read dependencies") {
         cmd.arg("--extern");
