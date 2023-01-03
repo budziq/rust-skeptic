@@ -7,5 +7,6 @@ fn main() {
         "tests/hashtag-test.md",
         "tests/should-panic-test.md",
         "tests/section-names.md",
+        "tests/static-file-test.md",
     ]);
 }
