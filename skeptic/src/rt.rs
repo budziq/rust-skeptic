@@ -194,7 +194,7 @@ fn get_cargo_meta<P: AsRef<Path> + std::convert::AsRef<std::ffi::OsStr>>(
 impl LockedDeps {
     fn from_path<P: AsRef<Path>>(path: P) -> Result<LockedDeps> {
         let path = path.as_ref().join("Cargo.toml");
-        let metadata = get_cargo_meta(&path)?;
+        let metadata = get_cargo_meta(path)?;
         let workspace_members = metadata.workspace_members;
         let deps = metadata
             .resolve
