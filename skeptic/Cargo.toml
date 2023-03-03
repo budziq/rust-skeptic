@@ -2,7 +2,7 @@
 description = "Test your Rust markdown documentation via Cargo"
 license = "MIT OR Apache-2.0"
 name = "skeptic"
-version = "0.13.7"
+version = "0.13.8"
 readme = "../README.md"
 repository = "https://github.com/budziq/rust-skeptic"
 homepage = "https://github.com/budziq/rust-skeptic"
