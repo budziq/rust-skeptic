@@ -22,4 +22,4 @@ tempfile = "3"
 walkdir = "2.2"
 
 [dev-dependencies]
-unindent = "0.1"
+unindent = "0.2"
