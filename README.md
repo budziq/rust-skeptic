@@ -59,7 +59,6 @@ fn main() {
 }
 ```
 
-
 Finally, in `tests/skeptic.rs` put the following macros to tie the
 generated test cases to `cargo test`:
 
@@ -75,14 +74,14 @@ test`.
 Rust Skeptic is not based on rustdoc. It behaves similarly in many
 cases, but not all. Here's the lowdown on the Skeptic system.
 
-*Note: [this `README.md` file itself is tested by Rust
+_Note: [this `README.md` file itself is tested by Rust
 Skeptic](/testing/build.rs).
 Because it is illustrating how to use markdown syntax, the markup on
 this document itself is funky, and so is the output below,
 particularly when illustrating Markdown's code fences
-(<code>```rust</code>).*
+(<code>```rust</code>)._
 
-*You must ask for `rust` code blocks explicitly to get Rust testing*,
+_You must ask for `rust` code blocks explicitly to get Rust testing_,
 with <code>```rust</code>. This is different from rustdoc, which
 assumes code blocks are Rust. The reason for this is that common
 Markdown parsers, like that used on GitHub, also do not assume Rust by
@@ -115,8 +114,8 @@ GitHub-compatible). These words change how the test is interpreted:
 
 ### `ignore` Info String
 
-The `ignore` info string causes the test to be completely ignored.  It will not
-be compiled or run during testing.  This can be useful if an example is written
+The `ignore` info string causes the test to be completely ignored. It will not
+be compiled or run during testing. This can be useful if an example is written
 in Rust (and you want it highlighted as such) but it is known to be incomplete
 (so it cannot compile as-is).
 
@@ -131,7 +130,7 @@ fn do_amazing_thing() -> i32 {
 ### `no_run` Info String
 
 The `no_run` info string causes the example code not to be run during testing.
-Code marked with `no_run` will however still be compiled.  This is useful for
+Code marked with `no_run` will however still be compiled. This is useful for
 examples/test that may have side effects or dependencies which are not desirable
 in a testing situation.
 
@@ -163,11 +162,11 @@ fn main() {
 
 ## Skeptic Templates
 
-Unlike rustdoc, *Skeptic does not modify examples before testing by
-default*. Skeptic examples are placed in a '.rs' file, compiled, then
+Unlike rustdoc, _Skeptic does not modify examples before testing by
+default_. Skeptic examples are placed in a '.rs' file, compiled, then
 run.
 
-This means that - *by default* - Skeptic examples require a `main`
+This means that - _by default_ - Skeptic examples require a `main`
 function, as in all the examples above. Implicit wrapping of examples
 in `main`, and custom injection of `extern crate` statements and crate
 attributes are controlled through templates.
@@ -241,6 +240,10 @@ fn main() {{
 }}
 ```
 ````
+
+## Static files
+
+To add static files for your tests add them in the `skeptic-static` folder, the content will be copied over before compiling and running your tests.
 
 ## Rustdoc-style undisplayed lines with `# `
 

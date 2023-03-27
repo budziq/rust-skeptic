@@ -9,6 +9,7 @@ use std::time::SystemTime;
 
 use cargo_metadata::Edition;
 use error_chain::error_chain;
+use fs_extra::dir::{copy, CopyOptions};
 use walkdir::WalkDir;
 
 pub fn compile_test(root_dir: &str, out_dir: &str, target_triple: &str, test_text: &str) {
@@ -44,6 +45,19 @@ fn handle_test(
         .unwrap();
     let testcase_path = out_dir.path().join("test.rs");
     fs::write(&testcase_path, test_text.as_bytes()).unwrap();
+    let static_dir = format!("{}/skeptic-static/", root_dir);
+
+    if Path::new(&static_dir).is_dir() {
+        copy(
+            static_dir,
+            out_dir.path(),
+            &CopyOptions {
+                content_only: true,
+                ..CopyOptions::new()
+            },
+        )
+        .unwrap();
+    }
 
     // OK, here's where a bunch of magic happens using assumptions
     // about cargo internals. We are going to use rustc to compile
