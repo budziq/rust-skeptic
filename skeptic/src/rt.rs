@@ -214,6 +214,15 @@ impl LockedDeps {
 impl Iterator for LockedDeps {
     type Item = (String, String);
 
+    #[rustversion::since(1.77)]
+    fn next(&mut self) -> Option<(String, String)> {
+        let dep = self.dependencies.pop()?;
+        let (path, version) = dep.rsplit_once(&['#', '@'])?;
+        let (_, name) = path.rsplit_once(&['/', '#'])?;
+        Some((name.replace('-', "_"), version.to_owned()))
+    }
+
+    #[rustversion::before(1.77)]
     fn next(&mut self) -> Option<(String, String)> {
         let dep = self.dependencies.pop()?;
         let mut parts = dep.split_whitespace();

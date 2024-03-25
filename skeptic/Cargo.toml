@@ -20,6 +20,7 @@ glob = "0.3"
 pulldown-cmark = { version = "0.9", default-features = false }
 tempfile = "3"
 walkdir = "2.2"
+rustversion = "1.0"
 
 [dev-dependencies]
 unindent = "0.2"
