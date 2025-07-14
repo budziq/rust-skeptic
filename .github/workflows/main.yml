@@ -30,6 +30,12 @@ jobs:
           profile: minimal
           toolchain: ${{ matrix.rust }}
           override: true
+      - name: Setup Windows environment
+        if: matrix.os == 'windows-latest'
+        run: |
+          # Switch to GNU toolchain to avoid Windows SDK linking issues
+          rustup target add x86_64-pc-windows-gnu
+          rustup default stable-x86_64-pc-windows-gnu
       - uses: actions-rs/cargo@v1
         with:
           command: build
@@ -48,7 +54,7 @@ jobs:
           profile: minimal
           toolchain: stable
       - run: cd .. &&
-          git clone -b skeptic-test https://github.com/djc/rust-cookbook &&
+          git clone -b master https://github.com/rust-lang-nursery/rust-cookbook &&
           cd rust-cookbook &&
           cargo test
 

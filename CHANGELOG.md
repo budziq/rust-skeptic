@@ -1,3 +1,9 @@
+# 0.14.0
+
+* [Skeptic fails to find dependencies starting with Rust 1.77](https://github.com/budziq/rust-skeptic/issues/141)
+
+Contributors: Andrew Gauger
+
 # 0.13.5
 
 * [Fixed problems with changed target directory layout](https://github.com/budziq/rust-skeptic/pull/121)

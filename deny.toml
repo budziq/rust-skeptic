@@ -1,6 +1,16 @@
 [licenses]
-allow-osi-fsf-free = "either"
-copyleft = "warn"
+version = 2
+confidence-threshold = 0.8
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+]
 
 [licenses.private]
 ignore = true
