@@ -1,3 +1,20 @@
+# 0.14.0
+
+* [Skeptic fails to find dependencies starting with Rust 1.77](https://github.com/budziq/rust-skeptic/issues/141)
+* Support cargo's newer build directory layout (`build/<pkg>/<hash>/{fingerprint,out}`)
+* Resolve rustc setup once per process and run snippets on a bounded worker pool (`SKEPTIC_JOBS`)
+* Bumped minimal Rust version to 1.85
+* Replaced the unmaintained `bincode` with `serde_json` for the `.skeptic-cache` file (caches from older releases are rebuilt)
+* The dependency cache is only reused while every cached rlib still exists, and is written atomically so concurrent test processes cannot leave a torn `.skeptic-cache`
+* Only the exact locked version is linked (no more semver-compatible leftovers). Of several builds of that version, the one the most other units were compiled against (read from cargo's fingerprints, including the root package's test targets) is used, then the freshest, so a snippet sees the same `serde` as the crates it uses
+* Which version of a crate a build is, when the graph holds several, is read from the unit's dep-info file instead of guessing from feature names (the `rand`/`thread_rng` special case is gone)
+* The root package is found with `cargo metadata`'s own resolution and canonical paths (symlinks, Windows); virtual workspaces start from every workspace member as before
+* `cargo metadata` runs once per setup rather than three or more times, and package lookups are indexed
+* A panicking snippet no longer takes its worker down and hangs the remaining tests; non-UTF-8 output is reported lossily
+* Dropped the `once_cell`, `num_cpus` and `semver` dependencies in favour of `std`, and made the cache and fingerprint types crate-private
+
+Contributors: Andrew Gauger
+
 # 0.13.5
 
 * [Fixed problems with changed target directory layout](https://github.com/budziq/rust-skeptic/pull/121)

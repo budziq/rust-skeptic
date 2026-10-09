@@ -1,11 +1,13 @@
 use std::collections::HashMap;
 use std::env;
 use std::fs::File;
-use std::io::{self, Error as IoError, Read, Write};
+use std::io::{self, Read, Write};
 use std::mem;
 use std::path::{Path, PathBuf};
 
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Parser, Tag};
+
+use crate::rt::SkepticError;
 
 pub mod rt;
 #[cfg(test)]
@@ -75,9 +77,9 @@ pub fn markdown_files_of_directory(dir: &str) -> Vec<PathBuf> {
 ///     generate_doc_tests(&mdbook_files);
 /// }
 /// ```
-pub fn generate_doc_tests<T: Clone>(docs: &[T])
+pub fn generate_doc_tests<T>(docs: &[T])
 where
-    T: AsRef<Path>,
+    T: Clone + AsRef<Path>,
 {
     // This shortcut is specifically so examples in skeptic's on
     // readme can call this function in non-build.rs contexts, without
@@ -88,7 +90,6 @@ where
 
     let docs = docs
         .iter()
-        .cloned()
         .map(|path| path.as_ref().to_str().unwrap().to_owned())
         .filter(|d| !d.ends_with(".skt.md"))
         .collect::<Vec<_>>();
@@ -131,6 +132,17 @@ struct Config {
 
 fn run(config: &Config) {
     let tests = extract_tests(config).unwrap();
+
+    // Pre-populate the cache during build phase
+    if let Err(e) = crate::rt::populate_cache_during_build(&config.root_dir, &config.target_triple)
+    {
+        // Don't fail the build if cache population fails, just warn
+        eprintln!(
+            "Warning: Failed to populate skeptic cache during build: {}",
+            e
+        );
+    }
+
     emit_tests(config, tests).unwrap();
 }
 
@@ -154,7 +166,7 @@ struct DocTest {
     templates: HashMap<String, String>,
 }
 
-fn extract_tests(config: &Config) -> Result<DocTestSuite, IoError> {
+fn extract_tests(config: &Config) -> Result<DocTestSuite, SkepticError> {
     let mut doc_tests = Vec::new();
     for doc in &config.docs {
         let path = &mut config.root_dir.clone();
@@ -171,7 +183,7 @@ enum Buffer {
     Heading(String),
 }
 
-fn extract_tests_from_file(path: &Path) -> Result<DocTest, IoError> {
+fn extract_tests_from_file(path: &Path) -> Result<DocTest, SkepticError> {
     let mut file = File::open(path)?;
     let s = &mut String::new();
     file.read_to_string(s)?;
@@ -196,11 +208,14 @@ fn extract_tests_from_string(s: &str, file_stem: &str) -> (Vec<Test>, Option<Str
     let parser = Parser::new(s);
     let mut section = None;
     let mut code_block_start = 0;
+    // Line numbers are only needed where a code block starts, so count
+    // newlines incrementally from the previous such position (offset, line)
+    // instead of from the start of the file for every event.
+    let mut line_cursor = (0usize, 0usize);
     // Oh this isn't actually a test but a legacy template
     let mut old_template = None;
 
     for (event, range) in parser.into_offset_iter() {
-        let line_number = bytecount::count(&s.as_bytes()[0..range.start], b'\n');
         match event {
             Event::Start(Tag::Heading(level, ..)) if level < HeadingLevel::H3 => {
                 buffer = Buffer::Heading(String::new());
@@ -220,7 +235,13 @@ fn extract_tests_from_string(s: &str, file_stem: &str) -> (Vec<Test>, Option<Str
             Event::Text(text) => {
                 if let Buffer::Code(ref mut buf) = buffer {
                     if buf.is_empty() {
-                        code_block_start = line_number;
+                        let (pos, line) = line_cursor;
+                        code_block_start = if range.start >= pos {
+                            line + bytecount::count(&s.as_bytes()[pos..range.start], b'\n')
+                        } else {
+                            line - bytecount::count(&s.as_bytes()[range.start..pos], b'\n')
+                        };
+                        line_cursor = (range.start, code_block_start);
                     }
                     buf.extend(text.lines().map(|s| format!("{}\n", s)));
                 } else if let Buffer::Heading(ref mut buf) = buffer {
@@ -255,7 +276,7 @@ fn extract_tests_from_string(s: &str, file_stem: &str) -> (Vec<Test>, Option<Str
     (tests, old_template)
 }
 
-fn load_templates(path: &Path) -> Result<HashMap<String, String>, IoError> {
+fn load_templates(path: &Path) -> Result<HashMap<String, String>, SkepticError> {
     let file_name = format!(
         "{}.skt.md",
         path.file_name().expect("no file name").to_string_lossy()
@@ -379,7 +400,7 @@ struct CodeBlockInfo {
     template: Option<String>,
 }
 
-fn emit_tests(config: &Config, suite: DocTestSuite) -> Result<(), IoError> {
+fn emit_tests(config: &Config, suite: DocTestSuite) -> Result<(), SkepticError> {
     let mut out = String::new();
 
     // Test cases use the api from skeptic::rt
@@ -439,7 +460,7 @@ fn create_test_runner(
     config: &Config,
     template: &Option<String>,
     test: &Test,
-) -> Result<String, IoError> {
+) -> Result<String, SkepticError> {
     let template = template.clone().unwrap_or_else(|| String::from("{}"));
     let test_text = create_test_input(&test.text);
 
@@ -483,7 +504,7 @@ fn create_test_runner(
     Ok(String::from_utf8(s).unwrap())
 }
 
-fn write_if_contents_changed(name: &Path, contents: &str) -> Result<(), IoError> {
+fn write_if_contents_changed(name: &Path, contents: &str) -> Result<(), SkepticError> {
     // Can't open in write mode now as that would modify the last changed timestamp of the file
     match File::open(name) {
         Ok(mut file) => {
@@ -495,7 +516,7 @@ fn write_if_contents_changed(name: &Path, contents: &str) -> Result<(), IoError>
             }
         }
         Err(ref err) if err.kind() == io::ErrorKind::NotFound => (),
-        Err(err) => return Err(err),
+        Err(err) => return Err(SkepticError::Io(err)),
     }
     let mut file = File::create(name)?;
     file.write_all(contents.as_bytes())?;

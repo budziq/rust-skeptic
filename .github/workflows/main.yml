@@ -10,16 +10,16 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        rust: [stable, beta, 1.56.0]
+        rust: [stable, beta, 1.85.0]
         exclude:
           - os: macos-latest
             rust: beta
           - os: macos-latest
-            rust: 1.56.0
+            rust: 1.85.0
           - os: windows-latest
             rust: beta
           - os: windows-latest
-            rust: 1.56.0
+            rust: 1.85.0
 
     runs-on: ${{ matrix.os }}
 
@@ -30,6 +30,12 @@ jobs:
           profile: minimal
           toolchain: ${{ matrix.rust }}
           override: true
+      - name: Setup Windows environment
+        if: matrix.os == 'windows-latest'
+        run: |
+          # Switch to GNU toolchain to avoid Windows SDK linking issues
+          rustup target add x86_64-pc-windows-gnu
+          rustup default stable-x86_64-pc-windows-gnu
       - uses: actions-rs/cargo@v1
         with:
           command: build
@@ -37,7 +43,7 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --all # MSRV: --workspace is not supported yet
+          args: --all
 
   Integration:
     runs-on: ubuntu-latest
@@ -48,7 +54,7 @@ jobs:
           profile: minimal
           toolchain: stable
       - run: cd .. &&
-          git clone -b skeptic-test https://github.com/djc/rust-cookbook &&
+          git clone -b master https://github.com/rust-lang-nursery/rust-cookbook &&
           cd rust-cookbook &&
           cargo test
 
@@ -76,4 +82,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: EmbarkStudios/cargo-deny-action@v1
+    - uses: EmbarkStudios/cargo-deny-action@v2

@@ -1,0 +1,32 @@
+name: CodSpeed
+
+on:
+  push:
+    branches: ['master']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  Benchmarks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      # Real-world corpus for the generate benchmarks (markdown only).
+      - run: git clone --depth 1 -b skeptic-test https://github.com/djc/rust-cookbook ../rust-cookbook
+      - run: cargo install cargo-codspeed --locked
+      # Walltime mode, because the `generate` benchmarks spend real time in
+      # system calls (reading markdown), which simulation mode cannot count.
+      # Shared runners are noisy; for stable numbers switch `runs-on` to a
+      # CodSpeed macro runner. The `rt` target spawns rustc and still runs
+      # locally with `cargo bench --bench rt`.
+      - run: cargo codspeed build -m walltime --bench generate
+        working-directory: benches
+      - uses: CodSpeedHQ/action@v5
+        env:
+          COOKBOOK_DIR: ${{ github.workspace }}/../rust-cookbook
+        with:
+          mode: walltime
+          working-directory: benches
+          run: cargo codspeed run generate
+          token: ${{ secrets.CODSPEED_TOKEN }}
